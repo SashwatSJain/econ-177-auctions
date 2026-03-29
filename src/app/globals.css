@@ -1,26 +1,97 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=DM+Serif+Display:ital@0;1&display=swap');
+
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --gold: #c9a84c;
+  --gold-light: #e8c96a;
+  --bg: #0d0d0d;
+  --surface: #141414;
+  --surface2: #1a1a1a;
+  --border: rgba(255,255,255,0.08);
+  --text: #e8e8e8;
+  --text-muted: #888;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  margin: 0;
+}
+
+.serif {
+  font-family: 'DM Serif Display', serif;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"] {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="number"]:focus {
+  border-color: var(--gold);
+}
+
+.btn-gold {
+  background: var(--gold);
+  color: #0d0d0d;
+  font-family: 'DM Mono', monospace;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+  border: none;
+}
+
+.btn-gold:hover {
+  background: var(--gold-light);
+}
+
+.btn-gold:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: 'DM Mono', monospace;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.btn-ghost:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.round-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.1);
+  display: inline-block;
+}
+.round-dot.completed {
+  background: var(--gold);
+}
+.round-dot.current {
+  background: var(--gold-light);
+  box-shadow: 0 0 6px var(--gold);
 }

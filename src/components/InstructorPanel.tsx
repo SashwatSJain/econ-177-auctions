@@ -1,0 +1,322 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase'
+import { AUCTION_CONFIGS, TOTAL_ROUNDS } from '@/lib/auction-config'
+import type { Bid } from '@/lib/types'
+
+interface Props {
+  userEmail: string
+}
+
+export default function InstructorPanel({ userEmail }: Props) {
+  const router = useRouter()
+  const [selectedAuction, setSelectedAuction] = useState(AUCTION_CONFIGS[0].key)
+  const [selectedRound, setSelectedRound] = useState<number | 'all'>('all')
+  const [bids, setBids] = useState<Bid[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const fetchBids = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/bids?auction_type=${selectedAuction}`)
+      if (res.ok) {
+        const data = await res.json()
+        setBids(data)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }, [selectedAuction])
+
+  useEffect(() => {
+    fetchBids()
+  }, [fetchBids])
+
+  const handleSignOut = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/instructor/login')
+    router.refresh()
+  }
+
+  // Derive rounds that have data
+  const roundsWithData = Array.from(new Set(bids.map((b) => b.round))).sort((a, b) => a - b)
+
+  // Filter bids by round
+  const filtered = selectedRound === 'all' ? bids : bids.filter((b) => b.round === selectedRound)
+
+  // Identify winners per round (highest bid in each round)
+  const winnerMap: Record<number, number> = {}
+  for (const r of roundsWithData) {
+    const roundBids = bids.filter((b) => b.round === r)
+    if (roundBids.length) {
+      winnerMap[r] = Math.max(...roundBids.map((b) => b.amount))
+    }
+  }
+
+  const isWinner = (bid: Bid) =>
+    winnerMap[bid.round] !== undefined && bid.amount === winnerMap[bid.round]
+
+  const currentConfig = AUCTION_CONFIGS.find((a) => a.key === selectedAuction)!
+
+  const handleExport = async () => {
+    const XLSX = await import('xlsx')
+    const wb = XLSX.utils.book_new()
+
+    // All bids sheet
+    const allRows = bids.map((b, i) => ({
+      '#': i + 1,
+      'Student ID': b.student_id,
+      Round: b.round,
+      'Private Value': b.private_value,
+      'Bid Amount': b.amount,
+      'Bid/Value Ratio': b.private_value > 0 ? (b.amount / b.private_value).toFixed(3) : '—',
+      Winner: isWinner(b) ? 'YES' : '',
+      Time: new Date(b.created_at).toLocaleTimeString(),
+    }))
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allRows), 'All Bids')
+
+    // Per-round sheets
+    for (let r = 1; r <= TOTAL_ROUNDS; r++) {
+      const rb = bids.filter((b) => b.round === r)
+      if (!rb.length) continue
+      const sorted = [...rb].sort((a, b) => b.amount - a.amount)
+      const rows = sorted.map((b, i) => ({
+        Rank: i + 1,
+        'Student ID': b.student_id,
+        'Private Value': b.private_value,
+        'Bid Amount': b.amount,
+        'Bid/Value Ratio': b.private_value > 0 ? (b.amount / b.private_value).toFixed(3) : '—',
+        Winner: isWinner(b) ? 'YES' : '',
+        Time: new Date(b.created_at).toLocaleTimeString(),
+      }))
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), `Round ${r}`)
+    }
+
+    XLSX.writeFile(wb, `${selectedAuction}-bids.xlsx`)
+  }
+
+  return (
+    <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
+      {/* Header */}
+      <header
+        className="border-b px-6 py-4 flex items-center justify-between"
+        style={{ borderColor: 'var(--border)' }}
+      >
+        <div>
+          <p className="text-xs tracking-widest uppercase" style={{ color: 'var(--gold)' }}>
+            Econ 177
+          </p>
+          <h1 className="serif text-xl" style={{ color: 'var(--text)' }}>
+            Instructor Dashboard
+          </h1>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            {userEmail}
+          </span>
+          <button
+            onClick={handleSignOut}
+            className="btn-ghost text-xs px-3 py-1.5 rounded"
+          >
+            Sign Out
+          </button>
+        </div>
+      </header>
+
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        {/* Auction type selector */}
+        <div className="mb-6">
+          <p className="text-xs tracking-widest uppercase mb-3" style={{ color: 'var(--text-muted)' }}>
+            Experiment
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {AUCTION_CONFIGS.map((a) => (
+              <button
+                key={a.key}
+                onClick={() => { setSelectedAuction(a.key); setSelectedRound('all') }}
+                className="text-xs px-3 py-1.5 rounded transition-all"
+                style={{
+                  background: selectedAuction === a.key ? 'var(--gold)' : 'var(--surface)',
+                  color: selectedAuction === a.key ? '#0d0d0d' : 'var(--text-muted)',
+                  border: `1px solid ${selectedAuction === a.key ? 'var(--gold)' : 'var(--border)'}`,
+                }}
+              >
+                {a.shortTitle}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Stats bar */}
+        <div
+          className="grid grid-cols-3 gap-4 rounded-xl p-4 mb-6"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+        >
+          <Stat label="Total Bids" value={bids.length} />
+          <Stat label="Unique Students" value={new Set(bids.map((b) => b.student_id)).size} />
+          <Stat label="Rounds Active" value={roundsWithData.length} />
+        </div>
+
+        {/* Nash equilibrium note */}
+        <div
+          className="rounded-lg px-4 py-3 mb-6 text-xs"
+          style={{
+            background: 'rgba(201,168,76,0.06)',
+            border: '1px solid rgba(201,168,76,0.15)',
+            color: 'var(--text-muted)',
+          }}
+        >
+          <span style={{ color: 'var(--gold)' }}>Nash Equilibrium: </span>
+          {currentConfig.nashDescription}
+        </div>
+
+        {/* Round filter + actions */}
+        <div className="flex flex-wrap gap-2 items-center justify-between mb-4">
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => setSelectedRound('all')}
+              className="text-xs px-3 py-1.5 rounded transition-all"
+              style={{
+                background: selectedRound === 'all' ? 'var(--surface2)' : 'transparent',
+                color: selectedRound === 'all' ? 'var(--text)' : 'var(--text-muted)',
+                border: `1px solid ${selectedRound === 'all' ? 'var(--gold)' : 'var(--border)'}`,
+              }}
+            >
+              All Rounds
+            </button>
+            {roundsWithData.map((r) => (
+              <button
+                key={r}
+                onClick={() => setSelectedRound(r)}
+                className="text-xs px-3 py-1.5 rounded transition-all"
+                style={{
+                  background: selectedRound === r ? 'var(--surface2)' : 'transparent',
+                  color: selectedRound === r ? 'var(--text)' : 'var(--text-muted)',
+                  border: `1px solid ${selectedRound === r ? 'var(--gold)' : 'var(--border)'}`,
+                }}
+              >
+                Round {r}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={fetchBids}
+              className="btn-ghost text-xs px-3 py-1.5 rounded"
+              disabled={loading}
+            >
+              {loading ? 'Loading…' : '↻ Refresh'}
+            </button>
+            <button
+              onClick={handleExport}
+              className="btn-gold text-xs px-3 py-1.5 rounded"
+              disabled={bids.length === 0}
+            >
+              ⬇ Excel
+            </button>
+          </div>
+        </div>
+
+        {/* Bid table */}
+        {filtered.length === 0 ? (
+          <div
+            className="rounded-xl p-12 text-center"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+          >
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+              {loading ? 'Loading bids…' : 'No bids yet for this experiment.'}
+            </p>
+          </div>
+        ) : (
+          <div
+            className="rounded-xl overflow-hidden"
+            style={{ border: '1px solid var(--border)' }}
+          >
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+                  {['#', 'Student ID', 'Round', 'Private Value', 'Bid Amount', 'Bid/Value', 'Time'].map(
+                    (h) => (
+                      <th
+                        key={h}
+                        className="text-left px-4 py-3 text-xs tracking-wide font-medium"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        {h}
+                      </th>
+                    )
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((bid, i) => {
+                  const winner = isWinner(bid)
+                  return (
+                    <tr
+                      key={bid.id}
+                      style={{
+                        background: winner
+                          ? 'rgba(201,168,76,0.06)'
+                          : i % 2 === 0
+                          ? 'var(--surface)'
+                          : 'var(--bg)',
+                        borderBottom: '1px solid var(--border)',
+                      }}
+                    >
+                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                        {i + 1}
+                      </td>
+                      <td
+                        className="px-4 py-3 text-xs"
+                        style={{ color: winner ? 'var(--gold)' : 'var(--text)' }}
+                      >
+                        {bid.student_id}
+                        {winner && <span className="ml-2">★</span>}
+                      </td>
+                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text)' }}>
+                        {bid.round}
+                      </td>
+                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text)' }}>
+                        ${Number(bid.private_value).toFixed(2)}
+                      </td>
+                      <td
+                        className="px-4 py-3 text-xs font-medium"
+                        style={{ color: winner ? 'var(--gold)' : 'var(--text)' }}
+                      >
+                        ${Number(bid.amount).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                        {bid.private_value > 0
+                          ? (bid.amount / bid.private_value).toFixed(3)
+                          : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                        {new Date(bid.created_at).toLocaleTimeString()}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
+        {label}
+      </p>
+      <p className="serif text-2xl" style={{ color: 'var(--gold)' }}>
+        {value}
+      </p>
+    </div>
+  )
+}
