@@ -4,6 +4,7 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'Auction Experiments — UCSB Econ 177',
   description: 'Classroom auction simulations for UCSB Econ 177',
+  icons: [],
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
