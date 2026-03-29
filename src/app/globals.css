@@ -1,65 +1,77 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=DM+Serif+Display:ital@0;1&display=swap');
+/* Nunito Sans — UCSB-prescribed web fallback for Avenir & Produkt */
+@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:ital,opsz,wght@0,6..12,300;0,6..12,400;0,6..12,600;0,6..12,700;0,6..12,900;1,6..12,300;1,6..12,400&display=swap');
 
 @import "tailwindcss";
 
 :root {
-  --gold: #c9a84c;
-  --gold-light: #e8c96a;
-  --bg: #0d0d0d;
-  --surface: #141414;
-  --surface2: #1a1a1a;
-  --border: rgba(255,255,255,0.08);
-  --text: #e8e8e8;
-  --text-muted: #888;
+  color-scheme: light;
+  --navy: #003660;
+  --navy-hover: #004f8a;
+  --gold: #FEBC11;
+  --bg: #ffffff;
+  --surface: #f6f7f9;
+  --surface2: #eceef2;
+  --border: #e2e4e8;
+  --text: #111827;
+  --text-muted: #6b7280;
 }
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  color-scheme: light;
+}
+
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'DM Mono', monospace;
+  /* Avenir Light (macOS) → Nunito Sans Light (web fallback) */
+  font-family: 'Avenir', 'Nunito Sans', sans-serif;
+  font-weight: 300;
   margin: 0;
 }
 
 .serif {
-  font-family: 'DM Serif Display', serif;
+  /* Produkt Light (macOS) → Avenir → Nunito Sans (web fallback) */
+  font-family: 'Produkt', 'Avenir', 'Nunito Sans', sans-serif;
+  font-weight: 300;
 }
 
 input[type="text"],
 input[type="email"],
 input[type="password"],
 input[type="number"] {
-  background: var(--surface2);
+  background: #fff;
   border: 1px solid var(--border);
   color: var(--text);
-  font-family: 'DM Mono', monospace;
+  font-family: 'Avenir', 'Nunito Sans', sans-serif;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.15s;
 }
 
 input[type="text"]:focus,
 input[type="email"]:focus,
 input[type="password"]:focus,
 input[type="number"]:focus {
-  border-color: var(--gold);
+  border-color: var(--navy);
+  box-shadow: 0 0 0 3px rgba(0, 54, 96, 0.08);
 }
 
 .btn-gold {
-  background: var(--gold);
-  color: #0d0d0d;
-  font-family: 'DM Mono', monospace;
+  background: var(--navy);
+  color: #fff;
+  font-family: 'Avenir', 'Nunito Sans', sans-serif;
   font-weight: 500;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.03em;
   cursor: pointer;
-  transition: background 0.2s, opacity 0.2s;
+  transition: background 0.15s, opacity 0.15s;
   border: none;
 }
 
 .btn-gold:hover {
-  background: var(--gold-light);
+  background: var(--navy-hover);
 }
 
 .btn-gold:disabled {
@@ -71,27 +83,29 @@ input[type="number"]:focus {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text-muted);
-  font-family: 'DM Mono', monospace;
+  font-family: 'Avenir', 'Nunito Sans', sans-serif;
   cursor: pointer;
-  transition: border-color 0.2s, color 0.2s;
+  transition: border-color 0.15s, color 0.15s;
 }
 
 .btn-ghost:hover {
-  border-color: var(--gold);
-  color: var(--gold);
+  border-color: var(--navy);
+  color: var(--navy);
 }
 
 .round-dot {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: rgba(255,255,255,0.1);
+  background: var(--border);
   display: inline-block;
 }
+
 .round-dot.completed {
-  background: var(--gold);
+  background: var(--navy);
 }
+
 .round-dot.current {
-  background: var(--gold-light);
-  box-shadow: 0 0 6px var(--gold);
+  background: var(--gold);
+  box-shadow: 0 0 5px rgba(254, 188, 17, 0.5);
 }

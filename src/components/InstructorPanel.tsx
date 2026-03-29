@@ -41,13 +41,9 @@ export default function InstructorPanel({ userEmail }: Props) {
     router.refresh()
   }
 
-  // Derive rounds that have data
   const roundsWithData = Array.from(new Set(bids.map((b) => b.round))).sort((a, b) => a - b)
-
-  // Filter bids by round
   const filtered = selectedRound === 'all' ? bids : bids.filter((b) => b.round === selectedRound)
 
-  // Identify winners per round (highest bid in each round)
   const winnerMap: Record<number, number> = {}
   for (const r of roundsWithData) {
     const roundBids = bids.filter((b) => b.round === r)
@@ -65,7 +61,6 @@ export default function InstructorPanel({ userEmail }: Props) {
     const XLSX = await import('xlsx')
     const wb = XLSX.utils.book_new()
 
-    // All bids sheet
     const allRows = bids.map((b, i) => ({
       '#': i + 1,
       'Student ID': b.student_id,
@@ -78,7 +73,6 @@ export default function InstructorPanel({ userEmail }: Props) {
     }))
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allRows), 'All Bids')
 
-    // Per-round sheets
     for (let r = 1; r <= TOTAL_ROUNDS; r++) {
       const rb = bids.filter((b) => b.round === r)
       if (!rb.length) continue
@@ -102,14 +96,14 @@ export default function InstructorPanel({ userEmail }: Props) {
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
       {/* Header */}
       <header
-        className="border-b px-6 py-4 flex items-center justify-between"
+        className="border-b px-6 py-3 flex items-center justify-between"
         style={{ borderColor: 'var(--border)' }}
       >
         <div>
-          <p className="text-xs tracking-widest uppercase" style={{ color: 'var(--gold)' }}>
-            Econ 177
+          <p className="text-xs tracking-widest uppercase" style={{ color: 'var(--navy)' }}>
+            UCSB · Econ 177
           </p>
-          <h1 className="serif text-xl" style={{ color: 'var(--text)' }}>
+          <h1 className="text-base font-medium mt-0.5" style={{ color: 'var(--text)' }}>
             Instructor Dashboard
           </h1>
         </div>
@@ -139,9 +133,9 @@ export default function InstructorPanel({ userEmail }: Props) {
                 onClick={() => { setSelectedAuction(a.key); setSelectedRound('all') }}
                 className="text-xs px-3 py-1.5 rounded transition-all"
                 style={{
-                  background: selectedAuction === a.key ? 'var(--gold)' : 'var(--surface)',
-                  color: selectedAuction === a.key ? '#0d0d0d' : 'var(--text-muted)',
-                  border: `1px solid ${selectedAuction === a.key ? 'var(--gold)' : 'var(--border)'}`,
+                  background: selectedAuction === a.key ? 'var(--navy)' : 'var(--surface)',
+                  color: selectedAuction === a.key ? '#fff' : 'var(--text-muted)',
+                  border: `1px solid ${selectedAuction === a.key ? 'var(--navy)' : 'var(--border)'}`,
                 }}
               >
                 {a.shortTitle}
@@ -164,12 +158,12 @@ export default function InstructorPanel({ userEmail }: Props) {
         <div
           className="rounded-lg px-4 py-3 mb-6 text-xs"
           style={{
-            background: 'rgba(201,168,76,0.06)',
-            border: '1px solid rgba(201,168,76,0.15)',
+            background: 'rgba(0,54,96,0.04)',
+            border: '1px solid rgba(0,54,96,0.1)',
             color: 'var(--text-muted)',
           }}
         >
-          <span style={{ color: 'var(--gold)' }}>Nash Equilibrium: </span>
+          <span style={{ color: 'var(--navy)', fontWeight: 500 }}>Nash Equilibrium: </span>
           {currentConfig.nashDescription}
         </div>
 
@@ -182,7 +176,7 @@ export default function InstructorPanel({ userEmail }: Props) {
               style={{
                 background: selectedRound === 'all' ? 'var(--surface2)' : 'transparent',
                 color: selectedRound === 'all' ? 'var(--text)' : 'var(--text-muted)',
-                border: `1px solid ${selectedRound === 'all' ? 'var(--gold)' : 'var(--border)'}`,
+                border: `1px solid ${selectedRound === 'all' ? 'var(--navy)' : 'var(--border)'}`,
               }}
             >
               All Rounds
@@ -195,7 +189,7 @@ export default function InstructorPanel({ userEmail }: Props) {
                 style={{
                   background: selectedRound === r ? 'var(--surface2)' : 'transparent',
                   color: selectedRound === r ? 'var(--text)' : 'var(--text-muted)',
-                  border: `1px solid ${selectedRound === r ? 'var(--gold)' : 'var(--border)'}`,
+                  border: `1px solid ${selectedRound === r ? 'var(--navy)' : 'var(--border)'}`,
                 }}
               >
                 Round {r}
@@ -259,41 +253,41 @@ export default function InstructorPanel({ userEmail }: Props) {
                       key={bid.id}
                       style={{
                         background: winner
-                          ? 'rgba(201,168,76,0.06)'
+                          ? 'rgba(0,54,96,0.04)'
                           : i % 2 === 0
-                          ? 'var(--surface)'
-                          : 'var(--bg)',
+                          ? '#fff'
+                          : 'var(--surface)',
                         borderBottom: '1px solid var(--border)',
                       }}
                     >
-                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                      <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                         {i + 1}
                       </td>
                       <td
-                        className="px-4 py-3 text-xs"
-                        style={{ color: winner ? 'var(--gold)' : 'var(--text)' }}
+                        className="px-4 py-2.5 text-xs"
+                        style={{ color: winner ? 'var(--navy)' : 'var(--text)', fontWeight: winner ? 500 : 400 }}
                       >
                         {bid.student_id}
-                        {winner && <span className="ml-2">★</span>}
+                        {winner && <span className="ml-2 text-[10px]">★</span>}
                       </td>
-                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text)' }}>
+                      <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text)' }}>
                         {bid.round}
                       </td>
-                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text)' }}>
+                      <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text)' }}>
                         ${Number(bid.private_value).toFixed(2)}
                       </td>
                       <td
-                        className="px-4 py-3 text-xs font-medium"
-                        style={{ color: winner ? 'var(--gold)' : 'var(--text)' }}
+                        className="px-4 py-2.5 text-xs font-medium"
+                        style={{ color: winner ? 'var(--navy)' : 'var(--text)' }}
                       >
                         ${Number(bid.amount).toFixed(2)}
                       </td>
-                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                      <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                         {bid.private_value > 0
                           ? (bid.amount / bid.private_value).toFixed(3)
                           : '—'}
                       </td>
-                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                      <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                         {new Date(bid.created_at).toLocaleTimeString()}
                       </td>
                     </tr>
@@ -314,7 +308,7 @@ function Stat({ label, value }: { label: string; value: number }) {
       <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
         {label}
       </p>
-      <p className="serif text-2xl" style={{ color: 'var(--gold)' }}>
+      <p className="serif text-2xl" style={{ color: 'var(--navy)' }}>
         {value}
       </p>
     </div>

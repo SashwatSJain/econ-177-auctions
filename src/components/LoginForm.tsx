@@ -50,7 +50,7 @@ export default function LoginForm() {
         onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
       />
       {error && (
-        <p className="text-xs" style={{ color: '#f87171' }}>
+        <p className="text-xs" style={{ color: '#dc2626' }}>
           {error}
         </p>
       )}

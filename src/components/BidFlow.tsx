@@ -51,7 +51,6 @@ export default function BidFlow({ auctionKey }: Props) {
 
       setRoundsCompleted(completed)
       setCurrentRound(completed + 1)
-      // Generate private value client-side, same formula as original
       const pv = Math.round(Math.random() * 10000) / 100
       setPrivateValue(pv)
       setPanel('value')
@@ -117,26 +116,24 @@ export default function BidFlow({ auctionKey }: Props) {
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg)' }}>
       {/* Header */}
       <header
-        className="border-b px-6 py-4 flex items-center justify-between"
+        className="border-b px-6 py-3 flex items-center justify-between"
         style={{ borderColor: 'var(--border)' }}
       >
-        <div>
-          <Link
-            href="/"
-            className="text-xs tracking-widest uppercase mr-4"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            ← Back
-          </Link>
-        </div>
+        <Link
+          href="/"
+          className="text-xs tracking-widest uppercase"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          ← Back
+        </Link>
         <div className="flex flex-col items-center">
           <span
             className="text-xs tracking-widest uppercase"
-            style={{ color: 'var(--gold)' }}
+            style={{ color: 'var(--navy)' }}
           >
-            Econ 177
+            UCSB · Econ 177
           </span>
-          <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+          <span className="text-xs font-medium mt-0.5" style={{ color: 'var(--text-muted)' }}>
             {config.shortTitle}
           </span>
         </div>
@@ -155,7 +152,11 @@ export default function BidFlow({ auctionKey }: Props) {
       {toast && (
         <div
           className="fixed top-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded text-sm z-50"
-          style={{ background: '#3a1a1a', color: '#f87171', border: '1px solid #7f1d1d' }}
+          style={{
+            background: '#fef2f2',
+            color: '#dc2626',
+            border: '1px solid #fecaca',
+          }}
         >
           {toast}
         </div>
@@ -184,7 +185,7 @@ export default function BidFlow({ auctionKey }: Props) {
                 autoFocus
               />
               {error && (
-                <p className="text-xs mb-4" style={{ color: '#f87171' }}>
+                <p className="text-xs mb-4" style={{ color: '#dc2626' }}>
                   {error}
                 </p>
               )}
@@ -215,7 +216,7 @@ export default function BidFlow({ auctionKey }: Props) {
                 <p className="text-xs uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>
                   Your private value this round
                 </p>
-                <p className="serif text-5xl" style={{ color: 'var(--gold)' }}>
+                <p className="serif text-5xl" style={{ color: 'var(--navy)' }}>
                   ${privateValue.toFixed(2)}
                 </p>
               </div>
@@ -251,7 +252,7 @@ export default function BidFlow({ auctionKey }: Props) {
               >
                 <span style={{ color: 'var(--text-muted)' }}>
                   Private Value:{' '}
-                  <span style={{ color: 'var(--gold)' }}>${privateValue.toFixed(2)}</span>
+                  <span style={{ color: 'var(--navy)', fontWeight: 500 }}>${privateValue.toFixed(2)}</span>
                 </span>
                 <span style={{ color: 'var(--border)' }}>|</span>
                 <span style={{ color: 'var(--text-muted)' }}>
@@ -267,8 +268,8 @@ export default function BidFlow({ auctionKey }: Props) {
                 <div
                   className="text-xs rounded-lg px-4 py-3 mb-4"
                   style={{
-                    background: 'rgba(201,168,76,0.06)',
-                    border: '1px solid rgba(201,168,76,0.2)',
+                    background: 'rgba(0,54,96,0.04)',
+                    border: '1px solid rgba(0,54,96,0.1)',
                     color: 'var(--text-muted)',
                   }}
                 >
@@ -309,7 +310,12 @@ export default function BidFlow({ auctionKey }: Props) {
           {/* PANEL: confirm */}
           {panel === 'confirm' && (
             <div className="text-center">
-              <div className="text-5xl mb-6">✓</div>
+              <div
+                className="text-4xl mb-6 w-14 h-14 rounded-full flex items-center justify-center mx-auto"
+                style={{ background: 'rgba(0,54,96,0.08)', color: 'var(--navy)' }}
+              >
+                ✓
+              </div>
               <h2 className="serif text-3xl mb-2" style={{ color: 'var(--text)' }}>
                 Round {roundsCompleted} Recorded
               </h2>
@@ -328,7 +334,12 @@ export default function BidFlow({ auctionKey }: Props) {
           {/* PANEL: complete */}
           {panel === 'complete' && (
             <div className="text-center">
-              <div className="text-5xl mb-6">🎉</div>
+              <div
+                className="text-2xl mb-6 w-14 h-14 rounded-full flex items-center justify-center mx-auto font-bold"
+                style={{ background: 'var(--navy)', color: '#fff' }}
+              >
+                ✓
+              </div>
               <h2 className="serif text-3xl mb-2" style={{ color: 'var(--text)' }}>
                 All {TOTAL_ROUNDS} Rounds Complete
               </h2>
@@ -358,14 +369,17 @@ function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
         return (
           <div key={s} className="flex items-center gap-2">
             {i > 0 && (
-              <div className="w-6 h-px" style={{ background: done ? 'var(--gold)' : 'var(--border)' }} />
+              <div
+                className="w-6 h-px"
+                style={{ background: done ? 'var(--navy)' : 'var(--border)' }}
+              />
             )}
             <div className="flex items-center gap-1.5">
               <span
                 className="w-5 h-5 rounded-full flex items-center justify-center text-xs"
                 style={{
-                  background: active || done ? 'var(--gold)' : 'var(--surface2)',
-                  color: active || done ? '#0d0d0d' : 'var(--text-muted)',
+                  background: active || done ? 'var(--navy)' : 'var(--surface2)',
+                  color: active || done ? '#fff' : 'var(--text-muted)',
                   fontWeight: 600,
                 }}
               >
