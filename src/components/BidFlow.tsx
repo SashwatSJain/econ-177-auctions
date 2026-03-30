@@ -264,7 +264,7 @@ export default function BidFlow({ auctionKey }: Props) {
                 </span>
               </div>
 
-              {config.participationThreshold !== null && (
+              {config.participationThreshold !== null && config.entryFee !== null && (
                 <div
                   className="text-xs rounded-lg px-4 py-3 mb-4"
                   style={{
@@ -273,7 +273,7 @@ export default function BidFlow({ auctionKey }: Props) {
                     color: 'var(--text-muted)',
                   }}
                 >
-                  Note: {config.nashDescription}. Bid $0 to not participate.
+                  Note: Bid $0 to not participate.
                 </div>
               )}
 
