@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
 
   const supabase = await createServerSupabaseClient()
 
-  let query = supabase.from('bids').select('*').order('created_at', { ascending: true })
+  let query = supabase.from('bids').select('*').order('created_at', { ascending: true }).limit(10000)
   if (auctionType) query = query.eq('auction_type', auctionType)
 
   const { data, error } = await query
