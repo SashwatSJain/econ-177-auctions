@@ -111,11 +111,18 @@ export default function HomePage() {
           )}
         </div>
 
-        {/* Instructor link */}
+        {/* Footer links */}
         <div
-          className="border-t pt-5 flex justify-end"
+          className="border-t pt-5 flex justify-between"
           style={{ borderColor: 'var(--border)' }}
         >
+          <Link
+            href="/export"
+            className="text-xs tracking-widest uppercase"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            Export My Data →
+          </Link>
           <Link
             href="/instructor"
             className="text-xs tracking-widest uppercase"

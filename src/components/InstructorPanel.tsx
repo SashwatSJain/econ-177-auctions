@@ -69,7 +69,7 @@ export default function InstructorPanel({ userEmail }: Props) {
       'Bid Amount': b.amount,
       'Bid/Value Ratio': b.private_value > 0 ? (b.amount / b.private_value).toFixed(3) : '—',
       Winner: isWinner(b) ? 'YES' : '',
-      Time: new Date(b.created_at).toLocaleTimeString(),
+      Time: new Date(b.created_at).toLocaleString(),
     }))
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allRows), 'All Bids')
 
@@ -84,7 +84,7 @@ export default function InstructorPanel({ userEmail }: Props) {
         'Bid Amount': b.amount,
         'Bid/Value Ratio': b.private_value > 0 ? (b.amount / b.private_value).toFixed(3) : '—',
         Winner: isWinner(b) ? 'YES' : '',
-        Time: new Date(b.created_at).toLocaleTimeString(),
+        Time: new Date(b.created_at).toLocaleString(),
       }))
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), `Round ${r}`)
     }
@@ -288,7 +288,7 @@ export default function InstructorPanel({ userEmail }: Props) {
                           : '—'}
                       </td>
                       <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                        {new Date(bid.created_at).toLocaleTimeString()}
+                        {new Date(bid.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                       </td>
                     </tr>
                   )
