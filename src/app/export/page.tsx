@@ -71,7 +71,6 @@ export default function ExportPage() {
                 background: 'var(--surface)',
                 border: '1px solid var(--border)',
                 color: 'var(--text)',
-                focusRingColor: 'var(--navy)',
               }}
             />
           </div>
