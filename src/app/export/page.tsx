@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 
 export default function ExportPage() {
   const [netid, setNetid] = useState('')
@@ -42,6 +43,13 @@ export default function ExportPage() {
   return (
     <main className="min-h-screen" style={{ background: 'var(--bg)' }}>
       <div className="max-w-md mx-auto px-6 py-14">
+        <Link
+          href="/"
+          className="text-xs tracking-widest uppercase mb-6 inline-block"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          ← Back
+        </Link>
         <p className="text-xs tracking-widest uppercase mb-2" style={{ color: 'var(--navy)' }}>
           UC Santa Barbara · Econ 177
         </p>
