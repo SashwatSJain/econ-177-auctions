@@ -113,9 +113,16 @@ export default function HomePage() {
 
         {/* Footer links */}
         <div
-          className="border-t pt-5 flex justify-between"
+          className="border-t pt-5 grid gap-3 sm:grid-cols-3"
           style={{ borderColor: 'var(--border)' }}
         >
+          <Link
+            href="/results"
+            className="text-xs tracking-widest uppercase"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            View My Results →
+          </Link>
           <Link
             href="/export"
             className="text-xs tracking-widest uppercase"
