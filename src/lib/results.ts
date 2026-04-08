@@ -1,28 +1,6 @@
 import { AUCTION_CONFIGS, TOTAL_ROUNDS } from '@/lib/auction-config'
 import type { AuctionConfig, Bid } from '@/lib/types'
 
-const PRIVATE_VALUE_MAX = 100
-
-export interface ResultsScatterPoint {
-  x: number
-  y: number
-  round: number
-}
-
-export interface ResultsLinePoint {
-  x: number
-  y: number
-}
-
-export interface AuctionVisualization {
-  xMax: number
-  yMax: number
-  threshold: number | null
-  classPoints: ResultsScatterPoint[]
-  studentPoints: ResultsScatterPoint[]
-  nashLine: ResultsLinePoint[]
-}
-
 export interface AuctionResultsSection {
   key: string
   title: string
@@ -38,21 +16,13 @@ export interface AuctionResultsSection {
   isAvailable: boolean
   isComplete: boolean
   summary: string
-  studentAveragePrivateValue: number | null
-  studentAverageBid: number | null
-  studentAverageBidRatio: number | null
-  studentAverageNashBid: number | null
-  studentMeanDeviationFromNash: number | null
-  studentMeanAbsoluteDeviationFromNash: number | null
-  classAverageBid: number | null
-  classMedianBidRatio: number | null
-  classMedianAbsoluteDeviationFromNash: number | null
-  closerThanPercent: number | null
+  studentAverageProfit: number | null
+  equilibriumAverageProfit: number | null
+  classAverageProfit: number | null
   studentPositiveBidBelowThresholdRate: number | null
   classPositiveBidBelowThresholdRate: number | null
   studentZeroBidAboveThresholdRate: number | null
   classZeroBidAboveThresholdRate: number | null
-  visualization: AuctionVisualization | null
 }
 
 export interface StudentResultsOverview {
@@ -61,8 +31,8 @@ export interface StudentResultsOverview {
   expectedExperiments: number
   experimentsFound: number
   fullyCompletedExperiments: number
-  strongestAuctionTitle: string | null
-  weakestAuctionTitle: string | null
+  highestProfitAuctionTitle: string | null
+  lowestProfitAuctionTitle: string | null
 }
 
 export interface StudentResultsDashboard {
@@ -78,11 +48,6 @@ interface NormalizedBid {
   private_value: number
   amount: number
   created_at: string
-}
-
-interface StudentScore {
-  studentId: string
-  meanAbsoluteDeviation: number
 }
 
 export function buildStudentResultsDashboard(
@@ -103,12 +68,9 @@ export function buildStudentResultsDashboard(
   )
 
   const availableSections = sections.filter((section) => section.isAvailable)
-  const rankedSections = availableSections
-    .filter((section) => section.studentMeanAbsoluteDeviationFromNash != null)
-    .sort((left, right) =>
-      (left.studentMeanAbsoluteDeviationFromNash ?? Number.POSITIVE_INFINITY) -
-      (right.studentMeanAbsoluteDeviationFromNash ?? Number.POSITIVE_INFINITY)
-    )
+  const rankedByProfit = availableSections
+    .filter((section) => section.studentAverageProfit != null)
+    .sort((left, right) => (right.studentAverageProfit ?? 0) - (left.studentAverageProfit ?? 0))
 
   return {
     overview: {
@@ -117,8 +79,8 @@ export function buildStudentResultsDashboard(
       expectedExperiments: AUCTION_CONFIGS.length,
       experimentsFound: availableSections.length,
       fullyCompletedExperiments: availableSections.filter((section) => section.isComplete).length,
-      strongestAuctionTitle: rankedSections[0]?.shortTitle ?? null,
-      weakestAuctionTitle: rankedSections.at(-1)?.shortTitle ?? null,
+      highestProfitAuctionTitle: rankedByProfit[0]?.shortTitle ?? null,
+      lowestProfitAuctionTitle: rankedByProfit.at(-1)?.shortTitle ?? null,
     },
     sections,
   }
@@ -134,13 +96,7 @@ function buildAuctionSection(
     .filter((bid) => bid.auction_type === config.key)
     .sort((left, right) => left.round - right.round)
   const sectionClassBids = allBids.filter((bid) => bid.auction_type === config.key)
-  const studentDeviations = sectionStudentBids.map((bid) => computeDeviation(config, bid))
-  const classDeviations = sectionClassBids.map((bid) => computeDeviation(config, bid))
-  const studentScores = buildStudentScores(sectionClassBids, config)
-  const peerScores = studentScores.filter((score) => score.studentId !== studentId)
-  const percentileBase = peerScores.length > 0 ? peerScores : studentScores
-  const currentStudentScore =
-    studentScores.find((score) => score.studentId === studentId)?.meanAbsoluteDeviation ?? null
+  const profitStats = computeProfitStats(config, sectionStudentBids, sectionClassBids, studentId)
 
   return {
     key: config.key,
@@ -157,19 +113,7 @@ function buildAuctionSection(
     isAvailable: sectionStudentBids.length > 0,
     isComplete: sectionStudentBids.length === TOTAL_ROUNDS,
     summary: describeAuction(config),
-    studentAveragePrivateValue: average(sectionStudentBids.map((bid) => bid.private_value)),
-    studentAverageBid: average(sectionStudentBids.map((bid) => bid.amount)),
-    studentAverageBidRatio: average(sectionStudentBids.map((bid) => safeRatio(bid.amount, bid.private_value))),
-    studentAverageNashBid: average(sectionStudentBids.map((bid) => config.nashFormula(bid.private_value))),
-    studentMeanDeviationFromNash: average(studentDeviations.map((entry) => entry.signed)),
-    studentMeanAbsoluteDeviationFromNash: average(studentDeviations.map((entry) => entry.absolute)),
-    classAverageBid: average(sectionClassBids.map((bid) => bid.amount)),
-    classMedianBidRatio: median(sectionClassBids.map((bid) => safeRatio(bid.amount, bid.private_value))),
-    classMedianAbsoluteDeviationFromNash: median(classDeviations.map((entry) => entry.absolute)),
-    closerThanPercent:
-      currentStudentScore == null
-        ? null
-        : computeCloserThanPercent(currentStudentScore, percentileBase.map((score) => score.meanAbsoluteDeviation)),
+    ...profitStats,
     studentPositiveBidBelowThresholdRate: computeThresholdRate(
       sectionStudentBids,
       config.participationThreshold,
@@ -190,72 +134,158 @@ function buildAuctionSection(
       config.participationThreshold,
       'zero-above'
     ),
-    visualization:
-      sectionClassBids.length > 0
-        ? buildVisualization(config, sectionClassBids, sectionStudentBids)
-        : null,
   }
 }
 
-function buildVisualization(
+// ---------------------------------------------------------------------------
+// Profit computation
+// ---------------------------------------------------------------------------
+
+interface ProfitStats {
+  studentAverageProfit: number | null
+  equilibriumAverageProfit: number | null
+  classAverageProfit: number | null
+}
+
+function computeProfitStats(
   config: AuctionConfig,
+  studentBids: NormalizedBid[],
   classBids: NormalizedBid[],
-  studentBids: NormalizedBid[]
-): AuctionVisualization {
-  const nashLine = buildNashLine(config)
-  const maxObservedBid = Math.max(
-    0,
-    ...classBids.map((bid) => bid.amount),
-    ...nashLine.map((point) => point.y),
-    config.reservePrice ?? 0,
-    config.participationThreshold ?? 0
-  )
-  const yMax = roundUp(Math.max(PRIVATE_VALUE_MAX, maxObservedBid * 1.1 || PRIVATE_VALUE_MAX), 10)
+  studentId: string
+): ProfitStats {
+  const isFirstPrice = config.key.startsWith('first')
 
-  return {
-    xMax: PRIVATE_VALUE_MAX,
-    yMax,
-    threshold: config.participationThreshold,
-    classPoints: classBids.map((bid) => ({ x: bid.private_value, y: bid.amount, round: bid.round })),
-    studentPoints: studentBids.map((bid) => ({ x: bid.private_value, y: bid.amount, round: bid.round })),
-    nashLine,
-  }
-}
-
-function buildStudentScores(classBids: NormalizedBid[], config: AuctionConfig): StudentScore[] {
-  const byStudent = new Map<string, NormalizedBid[]>()
-
+  // Group all class bids by round for opponent lookup
+  const classByRound = new Map<number, NormalizedBid[]>()
   for (const bid of classBids) {
-    const existing = byStudent.get(bid.student_id)
-    if (existing) {
-      existing.push(bid)
-    } else {
-      byStudent.set(bid.student_id, [bid])
+    const existing = classByRound.get(bid.round)
+    if (existing) existing.push(bid)
+    else classByRound.set(bid.round, [bid])
+  }
+
+  // Student's own profit and equilibrium counterfactual, per round
+  const studentProfits: number[] = []
+  const equilProfits: number[] = []
+
+  for (const bid of studentBids) {
+    const roundBids = classByRound.get(bid.round) ?? []
+    const opponentAmounts = roundBids
+      .filter((b) => b.student_id !== studentId)
+      .map((b) => b.amount)
+
+    if (opponentAmounts.length < config.bidders - 1) continue
+
+    studentProfits.push(
+      expectedProfit(config, bid.amount, bid.private_value, opponentAmounts, isFirstPrice)
+    )
+
+    const nashBid = config.nashFormula(bid.private_value)
+    equilProfits.push(
+      expectedProfit(config, nashBid, bid.private_value, opponentAmounts, isFirstPrice)
+    )
+  }
+
+  // Class average profit: every student in every round vs their classmates
+  const classProfits: number[] = []
+  for (const roundBids of classByRound.values()) {
+    for (const bid of roundBids) {
+      const opponentAmounts = roundBids
+        .filter((b) => b.student_id !== bid.student_id)
+        .map((b) => b.amount)
+      if (opponentAmounts.length < config.bidders - 1) continue
+      classProfits.push(
+        expectedProfit(config, bid.amount, bid.private_value, opponentAmounts, isFirstPrice)
+      )
     }
   }
 
-  return Array.from(byStudent.entries())
-    .map(([studentId, bidsForStudent]) => ({
-      studentId,
-      meanAbsoluteDeviation: average(
-        bidsForStudent.map((bid) => Math.abs(bid.amount - config.nashFormula(bid.private_value)))
-      ) ?? 0,
-    }))
-    .sort((left, right) => left.meanAbsoluteDeviation - right.meanAbsoluteDeviation)
-}
-
-function buildNashLine(config: AuctionConfig): ResultsLinePoint[] {
-  const points: ResultsLinePoint[] = []
-
-  for (let value = 0; value <= PRIVATE_VALUE_MAX; value += 2) {
-    points.push({
-      x: value,
-      y: config.nashFormula(value),
-    })
+  return {
+    studentAverageProfit: average(studentProfits),
+    equilibriumAverageProfit: average(equilProfits),
+    classAverageProfit: average(classProfits),
   }
-
-  return points
 }
+
+/**
+ * Expected profit for a single bid, computed against an empirical pool of
+ * opponents drawn from actual class data.
+ *
+ * For n=2: expected value averages over each individual opponent (with
+ * replacement, so each of the k opponents is equally likely).
+ *
+ * For n=5: expected value averages over all C(k,4) groups of 4 opponents.
+ * Second-price payment uses the combinatorial identity:
+ *   beaten[j] is the maximum of exactly C(j,3) four-tuples from beaten[0..j].
+ */
+function expectedProfit(
+  config: AuctionConfig,
+  b: number,
+  v: number,
+  opponents: number[],
+  isFirstPrice: boolean
+): number {
+  if (b <= 0) return 0
+
+  const k = opponents.length
+  const n = config.bidders
+  const entryFee = config.entryFee ?? 0
+  const reserve = config.reservePrice ?? 0
+
+  if (k < n - 1) return -entryFee
+
+  // Student can only win if their bid meets the reserve (if any)
+  if (reserve > 0 && b < reserve) return -entryFee
+
+  const beaten = opponents.filter((ob) => ob < b)
+  const w = beaten.length
+
+  if (n === 2) {
+    const pWin = w / k
+    if (isFirstPrice) {
+      return (v - b) * pWin - entryFee
+    } else {
+      // Payment when winning = max(opponent_bid, reserve)
+      const totalGrossProfit = beaten.reduce(
+        (sum, bj) => sum + (v - Math.max(bj, reserve)),
+        0
+      )
+      return totalGrossProfit / k - entryFee
+    }
+  } else {
+    // n = 5: need 4 opponents, all below b
+    const cWin = comb(w, 4)
+    const cTotal = comb(k, 4)
+    if (cTotal === 0) return -entryFee
+
+    if (isFirstPrice) {
+      return (v - b) * (cWin / cTotal) - entryFee
+    } else {
+      // Expected max of winning 4-tuple, using sorted beaten array
+      const sortedBeaten = [...beaten].sort((a, c) => a - c)
+      let sumMax = 0
+      for (let j = 3; j < sortedBeaten.length; j++) {
+        sumMax += sortedBeaten[j] * comb(j, 3)
+      }
+      return (v * cWin - sumMax) / cTotal - entryFee
+    }
+  }
+}
+
+/** Binomial coefficient C(n, k), iterative. */
+function comb(n: number, k: number): number {
+  if (k < 0 || k > n) return 0
+  if (k === 0 || k === n) return 1
+  const kk = Math.min(k, n - k)
+  let result = 1
+  for (let i = 0; i < kk; i++) {
+    result = (result * (n - i)) / (i + 1)
+  }
+  return Math.round(result)
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function normalizeBid(bid: Bid): NormalizedBid {
   return {
@@ -267,23 +297,6 @@ function normalizeBid(bid: Bid): NormalizedBid {
     amount: Number(bid.amount),
     created_at: String(bid.created_at),
   }
-}
-
-function computeDeviation(config: AuctionConfig, bid: NormalizedBid) {
-  const nashBid = config.nashFormula(bid.private_value)
-  const signed = bid.amount - nashBid
-
-  return {
-    signed,
-    absolute: Math.abs(signed),
-  }
-}
-
-function computeCloserThanPercent(studentScore: number, scores: number[]) {
-  if (scores.length === 0) return null
-
-  const worseScores = scores.filter((score) => score > studentScore).length
-  return (worseScores / scores.length) * 100
 }
 
 function computeThresholdRate(
@@ -308,39 +321,18 @@ function computeThresholdRate(
 
 function describeAuction(config: AuctionConfig) {
   if (config.reservePrice != null || config.entryFee != null) {
-    return 'Threshold auctions split the problem in two: values at or below the cutoff should usually stay out, while values above it should track the equilibrium response more closely.'
+    return 'With a participation cost, only enter when your value clears the threshold. Bidding when your value is too low destroys profit; staying out costs nothing.'
   }
 
   if (config.key.startsWith('second')) {
-    return 'Second-price auctions reward truthful bidding. The closer your bids stay to value, the closer you are to the dominant-strategy benchmark.'
+    return 'In a second-price auction the winner pays the highest losing bid, so you can bid your true value without leaving money on the table. Profit comes from winning when you have a high value.'
   }
 
-  return 'First-price auctions require bid shading. The goal is not to match value, but to shade toward the Nash bid for the number of competing bidders.'
+  return 'In a first-price auction you pay your own bid, so shading below value creates surplus. Bid too high and you win but earn little; bid too low and you lose outright.'
 }
 
-function average(values: Array<number | null>) {
-  const usableValues = values.filter((value): value is number => value != null && Number.isFinite(value))
-  if (usableValues.length === 0) return null
-  return usableValues.reduce((sum, value) => sum + value, 0) / usableValues.length
-}
-
-function median(values: Array<number | null>) {
-  const sorted = values
-    .filter((value): value is number => value != null && Number.isFinite(value))
-    .sort((left, right) => left - right)
-  if (sorted.length === 0) return null
-  const mid = Math.floor(sorted.length / 2)
-  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
-}
-
-function safeRatio(numerator: number, denominator: number) {
-  if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator <= 0) {
-    return null
-  }
-
-  return numerator / denominator
-}
-
-function roundUp(value: number, step: number) {
-  return Math.ceil(value / step) * step
+function average(values: number[]) {
+  const usable = values.filter((v) => Number.isFinite(v))
+  if (usable.length === 0) return null
+  return usable.reduce((sum, v) => sum + v, 0) / usable.length
 }

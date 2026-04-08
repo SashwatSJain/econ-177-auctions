@@ -1,14 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import type { ReactNode } from 'react'
 import Link from 'next/link'
 
-import type {
-  AuctionResultsSection,
-  ResultsLinePoint,
-  ResultsScatterPoint,
-  StudentResultsDashboard,
-} from '@/lib/results'
+import type { AuctionResultsSection, StudentResultsDashboard } from '@/lib/results'
 
 interface Props {
   dashboard: StudentResultsDashboard
@@ -16,7 +11,6 @@ interface Props {
 
 export default function ResultsDashboard({ dashboard }: Props) {
   const { overview, sections } = dashboard
-  const [hideExtremeOutliers, setHideExtremeOutliers] = useState(true)
 
   return (
     <div className="space-y-8">
@@ -29,13 +23,13 @@ export default function ResultsDashboard({ dashboard }: Props) {
             Retro Feedback
           </p>
           <h2 className="serif text-2xl leading-snug" style={{ color: 'var(--text)' }}>
-            How your bidding compares to Nash and to the rest of the class.
+            How much profit did your bids earn?
           </h2>
           <p className="mt-2 text-sm leading-6 max-w-2xl" style={{ color: 'var(--text-muted)' }}>
-            Each auction shows what the benchmark strategy predicted, where your bids landed, and how tightly you tracked the same logic as your classmates.
+            Each auction shows your average profit, computed by matching your bids against all of your classmates&rsquo; actual bids across every round. The equilibrium column shows what you would have earned by bidding the theoretical benchmark strategy instead.
           </p>
 
-          <div className="mt-5 grid gap-2 grid-cols-2 sm:grid-cols-3 xl:grid-cols-6">
+          <div className="mt-5 grid gap-2 grid-cols-2 sm:grid-cols-3 xl:grid-cols-5">
             <OverviewStat label="Perm" value={overview.studentId} />
             <OverviewStat
               label="Experiments Found"
@@ -43,32 +37,21 @@ export default function ResultsDashboard({ dashboard }: Props) {
             />
             <OverviewStat label="Fully Completed" value={String(overview.fullyCompletedExperiments)} />
             <OverviewStat label="Total Bids" value={String(overview.totalBidsFound)} />
-            <OverviewStat label="Strongest Fit" value={overview.strongestAuctionTitle ?? 'Not enough data'} />
-            <OverviewStat label="Weakest Fit" value={overview.weakestAuctionTitle ?? 'Not enough data'} />
-          </div>
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t pt-4" style={{ borderColor: 'var(--border)' }}>
-          <p className="text-xs uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-            Chart Controls
-          </p>
-          <label className="inline-flex cursor-pointer items-center gap-3 text-sm" style={{ color: 'var(--text)' }}>
-            <input
-              type="checkbox"
-              checked={hideExtremeOutliers}
-              onChange={(event) => setHideExtremeOutliers(event.target.checked)}
-              className="h-4 w-4 accent-[var(--navy)]"
+            <OverviewStat
+              label="Best Profit In"
+              value={overview.highestProfitAuctionTitle ?? 'Not enough data'}
             />
-            Hide extreme class outliers in charts
-          </label>
+          </div>
         </div>
       </section>
 
       <div className="space-y-6">
         {sections.map((section) => (
-          <AuctionSection key={section.key} section={section} hideExtremeOutliers={hideExtremeOutliers} />
+          <AuctionSection key={section.key} section={section} />
         ))}
       </div>
+
+      <MethodologyNote />
 
       <div
         className="border-t pt-5 grid gap-3 sm:grid-cols-2"
@@ -85,13 +68,7 @@ export default function ResultsDashboard({ dashboard }: Props) {
   )
 }
 
-function AuctionSection({
-  section,
-  hideExtremeOutliers,
-}: {
-  section: AuctionResultsSection
-  hideExtremeOutliers: boolean
-}) {
+function AuctionSection({ section }: { section: AuctionResultsSection }) {
   return (
     <section
       className="rounded-[26px] border p-5 shadow-[0_18px_50px_rgba(17,24,39,0.05)] sm:p-6"
@@ -124,7 +101,7 @@ function AuctionSection({
           </p>
 
           <div className="mt-4 flex flex-wrap gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
-            <MetaPill label="Benchmark" value={section.nashDescription} />
+            <MetaPill label="Equilibrium" value={section.nashDescription} />
             <MetaPill label="Bidders" value={String(section.bidders)} />
             {section.reservePrice != null ? <MetaPill label="Reserve" value={formatMoney(section.reservePrice)} /> : null}
             {section.entryFee != null ? <MetaPill label="Entry Fee" value={formatMoney(section.entryFee)} /> : null}
@@ -157,197 +134,85 @@ function AuctionSection({
         </div>
       ) : (
         <div className="mt-6 space-y-5">
-          {/* Metric cards — full width, 4-up */}
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {/* Profit comparison cards */}
+          <div className="grid gap-3 sm:grid-cols-3">
             <MetricCard
-              eyebrow="Your Bid / Value"
-              value={formatMaybePercent(section.studentAverageBidRatio)}
-              detail={`Class median ${formatMaybePercent(section.classMedianBidRatio)}`}
+              eyebrow="Your Avg Profit"
+              value={formatMaybeMoney(section.studentAverageProfit)}
+              detail="Average per round across all pairings"
             />
             <MetricCard
-              eyebrow="Signed Gap"
-              value={formatSignedMaybeMoney(section.studentMeanDeviationFromNash)}
-              detail="Positive means you overbid the benchmark"
+              eyebrow="Equilibrium Bidder"
+              value={formatMaybeMoney(section.equilibriumAverageProfit)}
+              detail="What you'd have earned bidding the benchmark strategy"
             />
             <MetricCard
-              eyebrow="Abs Nash Error"
-              value={formatMaybeMoney(section.studentMeanAbsoluteDeviationFromNash)}
-              detail="Your avg dollar distance from benchmark"
-            />
-            <MetricCard
-              eyebrow="Closer Than"
-              value={section.closerThanPercent == null ? 'n/a' : `${Math.round(section.closerThanPercent)}%`}
-              detail="of classmates by Nash accuracy"
+              eyebrow="Class Avg Profit"
+              value={formatMaybeMoney(section.classAverageProfit)}
+              detail="Average across all students and rounds"
             />
           </div>
 
-          {/* Chart + insight panels side by side */}
-          <div className="grid gap-5 xl:grid-cols-[1.3fr_0.7fr]">
-            {section.visualization ? (
-              <BidChart section={section} hideExtremeOutliers={hideExtremeOutliers} />
-            ) : <div />}
+          {/* Profit gap insight */}
+          <ProfitInsightPanel section={section} />
 
-            <div className="space-y-4">
-              <InsightPanel
-                title="Against Nash"
-                lines={[
-                  `Class median absolute deviation: ${formatMaybeMoney(section.classMedianAbsoluteDeviationFromNash)}`,
-                  section.closerThanPercent == null
-                    ? 'Need more class data to rank your deviation cleanly.'
-                    : `You were closer to the benchmark than roughly ${Math.round(section.closerThanPercent)}% of comparable students.`,
-                ]}
-              />
-
-              {section.participationThreshold != null ? (
-                <InsightPanel
-                  title="Threshold Discipline"
-                  lines={[
-                    `Your positive bids at or below threshold: ${formatMaybePercent(section.studentPositiveBidBelowThresholdRate)}`,
-                    `Class positive bids at or below threshold: ${formatMaybePercent(section.classPositiveBidBelowThresholdRate)}`,
-                    `Your zero bids above threshold: ${formatMaybePercent(section.studentZeroBidAboveThresholdRate)}`,
-                    `Class zero bids above threshold: ${formatMaybePercent(section.classZeroBidAboveThresholdRate)}`,
-                  ]}
-                />
-              ) : null}
-            </div>
-          </div>
+          {/* Threshold discipline (only for auctions with a participation cutoff) */}
+          {section.participationThreshold != null ? (
+            <InsightPanel
+              title="Threshold Discipline"
+              lines={[
+                `Your positive bids at or below threshold: ${formatMaybePercent(section.studentPositiveBidBelowThresholdRate)}`,
+                `Class positive bids at or below threshold: ${formatMaybePercent(section.classPositiveBidBelowThresholdRate)}`,
+                `Your zero bids above threshold: ${formatMaybePercent(section.studentZeroBidAboveThresholdRate)}`,
+                `Class zero bids above threshold: ${formatMaybePercent(section.classZeroBidAboveThresholdRate)}`,
+              ]}
+            />
+          ) : null}
         </div>
       )}
     </section>
   )
 }
 
-function BidChart({
-  section,
-  hideExtremeOutliers,
-}: {
-  section: AuctionResultsSection
-  hideExtremeOutliers: boolean
-}) {
-  const visualization = section.visualization
-  if (!visualization) return null
+function ProfitInsightPanel({ section }: { section: AuctionResultsSection }) {
+  const { studentAverageProfit, equilibriumAverageProfit, classAverageProfit } = section
 
-  const chartPoints = hideExtremeOutliers
-    ? filterExtremeClassOutliers(visualization.classPoints)
-    : visualization.classPoints
-  const filteredCount = visualization.classPoints.length - chartPoints.length
+  const lines: string[] = []
 
-  const width = 720
-  const height = 360
-  const left = 48
-  const right = 18
-  const top = 18
-  const bottom = 34
-  const plotWidth = width - left - right
-  const plotHeight = height - top - bottom
-  const yMax = computeChartYMax({
-    classPoints: chartPoints,
-    studentPoints: visualization.studentPoints,
-    nashLine: visualization.nashLine,
-    threshold: visualization.threshold,
-    fallback: visualization.yMax,
-  })
+  if (studentAverageProfit != null && equilibriumAverageProfit != null) {
+    const diff = studentAverageProfit - equilibriumAverageProfit
+    const absDiff = formatMoney(Math.abs(diff))
+    if (Math.abs(diff) < 0.01) {
+      lines.push('Your profit was essentially identical to the equilibrium benchmark.')
+    } else if (diff > 0) {
+      lines.push(`You outearned the equilibrium strategy by ${absDiff} on average — your bidding worked better than theory against this class.`)
+    } else {
+      lines.push(`The equilibrium strategy would have earned ${absDiff} more per round on average. Consider how your bids deviated from the benchmark.`)
+    }
+  }
 
-  const scaleX = (value: number) => left + (value / visualization.xMax) * plotWidth
-  const scaleY = (value: number) => top + plotHeight - (value / yMax) * plotHeight
+  if (studentAverageProfit != null && classAverageProfit != null) {
+    const diff = studentAverageProfit - classAverageProfit
+    const absDiff = formatMoney(Math.abs(diff))
+    if (Math.abs(diff) < 0.01) {
+      lines.push('Your profit matched the class average closely.')
+    } else if (diff > 0) {
+      lines.push(`You earned ${absDiff} more per round than the class average.`)
+    } else {
+      lines.push(`You earned ${absDiff} less per round than the class average.`)
+    }
+  }
 
-  const nashPath = buildPath(visualization.nashLine, scaleX, scaleY)
+  if (lines.length === 0) {
+    lines.push('Not enough data to compare profits.')
+  }
 
-  return (
-    <div
-      className="rounded-[24px] border p-4"
-      style={{ borderColor: 'var(--border)', background: 'linear-gradient(180deg, #fcfdff 0%, #f8fafc 100%)' }}
-    >
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.22em]" style={{ color: 'var(--text-muted)' }}>
-            Bid Map
-          </p>
-          <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
-            Gold dots are your bids. The navy line is the benchmark strategy for this model.
-          </p>
-          {hideExtremeOutliers && filteredCount > 0 ? (
-            <p className="mt-1 text-xs uppercase tracking-[0.16em]" style={{ color: 'var(--navy)' }}>
-              Hiding {filteredCount} extreme class outlier{filteredCount === 1 ? '' : 's'}
-            </p>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap items-center gap-3 text-[11px] uppercase tracking-[0.18em]" style={{ color: 'var(--text-muted)' }}>
-          <LegendSwatch color="rgba(0,54,96,0.16)" label="Class" />
-          <LegendSwatch color="rgba(254,188,17,0.92)" label="You" />
-          <LegendSwatch color="rgba(0,54,96,0.95)" label="Nash" />
-        </div>
-      </div>
-
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-auto w-full" role="img" aria-label={`${section.title} bid comparison chart`}>
-        <rect x={0} y={0} width={width} height={height} rx={20} fill="transparent" />
-
-        {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
-          const yValue = yMax * tick
-          const y = scaleY(yValue)
-          return (
-            <g key={tick}>
-              <line x1={left} x2={width - right} y1={y} y2={y} stroke="rgba(107,114,128,0.12)" strokeWidth="1" />
-              <text x={10} y={y + 4} fontSize="11" fill="rgba(107,114,128,0.9)">
-                {formatAxisMoney(yValue)}
-              </text>
-            </g>
-          )
-        })}
-
-        {[0, 25, 50, 75, 100].map((tick) => {
-          const x = scaleX(tick)
-          return (
-            <g key={tick}>
-              <line x1={x} x2={x} y1={top} y2={height - bottom} stroke="rgba(107,114,128,0.12)" strokeWidth="1" />
-              <text x={x} y={height - 8} textAnchor="middle" fontSize="11" fill="rgba(107,114,128,0.9)">
-                {tick}
-              </text>
-            </g>
-          )
-        })}
-
-        {visualization.threshold != null ? (
-          <line
-            x1={scaleX(visualization.threshold)}
-            x2={scaleX(visualization.threshold)}
-            y1={top}
-            y2={height - bottom}
-            stroke="rgba(239,68,68,0.55)"
-            strokeDasharray="6 6"
-            strokeWidth="1.5"
-          />
-        ) : null}
-
-        <path d={nashPath} fill="none" stroke="rgba(0,54,96,0.95)" strokeWidth="3" strokeLinecap="round" />
-
-        {chartPoints.map((point, index) => (
-          <circle
-            key={`class-${index}`}
-            cx={scaleX(point.x)}
-            cy={scaleY(point.y)}
-            r="4"
-            fill="rgba(0,54,96,0.15)"
-          />
-        ))}
-
-        {visualization.studentPoints.map((point, index) => (
-          <g key={`student-${index}`}>
-            <circle cx={scaleX(point.x)} cy={scaleY(point.y)} r="6.5" fill="rgba(254,188,17,0.92)" />
-            <circle cx={scaleX(point.x)} cy={scaleY(point.y)} r="2.5" fill="rgba(0,54,96,0.92)" />
-          </g>
-        ))}
-
-        <text x={left} y={12} fontSize="11" fill="rgba(107,114,128,0.9)">
-          Bid
-        </text>
-        <text x={width - right} y={height - 8} textAnchor="end" fontSize="11" fill="rgba(107,114,128,0.9)">
-          Private value
-        </text>
-      </svg>
-    </div>
-  )
+  return <InsightPanel title="Profit Breakdown" lines={lines} />
 }
+
+// ---------------------------------------------------------------------------
+// Shared sub-components
+// ---------------------------------------------------------------------------
 
 function OverviewStat({ label, value }: { label: string; value: string }) {
   return (
@@ -426,73 +291,71 @@ function MetaPill({ label, value }: { label: string; value: string }) {
   )
 }
 
-function LegendSwatch({ color, label }: { color: string; label: string }) {
+// ---------------------------------------------------------------------------
+// Methodology note
+// ---------------------------------------------------------------------------
+
+function MethodologyNote() {
   return (
-    <span className="inline-flex items-center gap-2">
-      <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
-      {label}
-    </span>
+    <details
+      className="rounded-2xl border text-sm"
+      style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+    >
+      <summary
+        className="cursor-pointer select-none px-5 py-4 text-xs uppercase tracking-widest list-none flex items-center justify-between gap-2"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        <span>How profits are computed</span>
+        <span className="text-base leading-none transition-transform details-open:rotate-90" aria-hidden>›</span>
+      </summary>
+
+      <div className="px-5 pb-5 space-y-4 leading-7" style={{ color: 'var(--text-muted)' }}>
+        <Section heading="Matching against classmates">
+          For each round you played, your bid is compared against the actual bids submitted by every other student in that same round. Rather than using your one real opponent, your profit is averaged across <em>all possible pairings</em> — so the number reflects your bidding strategy, not luck of the draw.
+        </Section>
+
+        <Section heading="First-price auctions">
+          You win a pairing if your bid strictly exceeds your opponent&rsquo;s. Your profit when you win is your private value minus your bid (you pay what you bid). Expected profit per round is your win-probability times that surplus.
+        </Section>
+
+        <Section heading="Second-price auctions">
+          You win if your bid is the highest, but you pay the highest losing bid (or the reserve price, whichever is larger). Expected profit is the average of <em>(your value − opponent&rsquo;s bid)</em> over all opponents you beat, divided by the total number of opponents.
+        </Section>
+
+        <Section heading="5-bidder auctions">
+          When there are 5 bidders you need to beat 4 opponents. The win probability is the fraction of all possible 4-opponent groups (drawn without replacement from your classmates in that round) in which you have the highest bid. For second-price, the expected payment uses the exact combinatorial sum over those same groups.
+        </Section>
+
+        <Section heading="Entry fees and reserve prices">
+          If an auction has an entry fee, it is subtracted from your profit whenever you submit a positive bid (regardless of outcome). If there is a reserve price, your bid must meet or exceed it to be eligible to win; a bid below the reserve earns nothing and still costs any entry fee paid.
+        </Section>
+
+        <Section heading="Equilibrium bidder">
+          The equilibrium column answers: <em>what would your profit have been if you had bid the theoretical benchmark for every private value you were assigned?</em> It uses your actual private values and the same classmates as opponents, so the only thing that changes is the bid amount.
+        </Section>
+
+        <Section heading="Class average">
+          Every student&rsquo;s profit for every round is computed the same way and then averaged together. This gives a sense of how the class as a whole performed in each auction format.
+        </Section>
+      </div>
+    </details>
   )
 }
 
-function buildPath(points: ResultsLinePoint[], scaleX: (value: number) => number, scaleY: (value: number) => number) {
-  return points
-    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${scaleX(point.x).toFixed(1)} ${scaleY(point.y).toFixed(1)}`)
-    .join(' ')
+function Section({ heading, children }: { heading: string; children: ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs uppercase tracking-widest mb-1" style={{ color: 'var(--navy)' }}>
+        {heading}
+      </p>
+      <p>{children}</p>
+    </div>
+  )
 }
 
-function filterExtremeClassOutliers(points: ResultsScatterPoint[]) {
-  if (points.length < 4) return points
-
-  const amounts = [...points].map((point) => point.y).sort((left, right) => left - right)
-  const q1 = quantile(amounts, 0.25)
-  const q3 = quantile(amounts, 0.75)
-  const iqr = q3 - q1
-
-  if (!Number.isFinite(iqr) || iqr <= 0) return points
-
-  const lower = q1 - iqr * 1.5
-  const upper = q3 + iqr * 1.5
-
-  return points.filter((point) => point.y >= lower && point.y <= upper)
-}
-
-function quantile(sortedValues: number[], percentile: number) {
-  if (sortedValues.length === 0) return 0
-  const index = (sortedValues.length - 1) * percentile
-  const lower = Math.floor(index)
-  const upper = Math.ceil(index)
-  if (lower === upper) return sortedValues[lower]
-  const weight = index - lower
-  return sortedValues[lower] * (1 - weight) + sortedValues[upper] * weight
-}
-
-function computeChartYMax({
-  classPoints,
-  studentPoints,
-  nashLine,
-  threshold,
-  fallback,
-}: {
-  classPoints: ResultsScatterPoint[]
-  studentPoints: ResultsScatterPoint[]
-  nashLine: ResultsLinePoint[]
-  threshold: number | null
-  fallback: number
-}) {
-  const values = [
-    ...classPoints.map((point) => point.y),
-    ...studentPoints.map((point) => point.y),
-    ...nashLine.map((point) => point.y),
-    threshold ?? 0,
-  ]
-  const maxValue = Math.max(...values, 0)
-  return Math.max(100, roundUp(maxValue * 1.1 || fallback, 10))
-}
-
-function roundUp(value: number, step: number) {
-  return Math.ceil(value / step) * step
-}
+// ---------------------------------------------------------------------------
+// Formatters
+// ---------------------------------------------------------------------------
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat('en-US', {
@@ -506,17 +369,7 @@ function formatMaybeMoney(value: number | null) {
   return value == null ? 'n/a' : formatMoney(value)
 }
 
-function formatSignedMaybeMoney(value: number | null) {
-  if (value == null) return 'n/a'
-  const prefix = value > 0 ? '+' : ''
-  return `${prefix}${formatMoney(value)}`
-}
-
 function formatMaybePercent(value: number | null) {
   if (value == null) return 'n/a'
   return `${(value * 100).toFixed(1)}%`
-}
-
-function formatAxisMoney(value: number) {
-  return `$${Math.round(value)}`
 }
