@@ -6,6 +6,7 @@ interface CardDef {
   line2: string
   line3: string
   description: string
+  href?: string
   comingSoon?: boolean
 }
 
@@ -73,6 +74,15 @@ const CARDS: CardDef[] = [
     line3: '$25 Entry Fee',
     description:
       'First-price sealed bid with a $25 entry fee.',
+  },
+  {
+    key: 'assignment2',
+    line1: 'Assignment 2',
+    line2: 'Risk Aversion',
+    line3: 'Elicitation',
+    description:
+      'Enter indifference probabilities between a lottery and certain payments. See class risk preferences in real time.',
+    href: '/assignment2',
   },
   {
     key: 'common-value',
@@ -144,8 +154,9 @@ export default function HomePage() {
 }
 
 function AuctionCard({ card }: { card: CardDef }) {
+  const href = card.href ?? `/auction/${card.key}`
   return (
-    <Link href={`/auction/${card.key}`} className="block group">
+    <Link href={href} className="block group">
       <div
         className="rounded-lg p-5 h-full flex flex-col transition-colors duration-150 group-hover:border-[#003660]"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
