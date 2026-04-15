@@ -15,14 +15,9 @@ export interface AuctionResultsSection {
   totalClassBids: number
   isAvailable: boolean
   isComplete: boolean
-  summary: string
   studentAverageProfit: number | null
   equilibriumAverageProfit: number | null
   classAverageProfit: number | null
-  studentPositiveBidBelowThresholdRate: number | null
-  classPositiveBidBelowThresholdRate: number | null
-  studentZeroBidAboveThresholdRate: number | null
-  classZeroBidAboveThresholdRate: number | null
 }
 
 export interface StudentResultsOverview {
@@ -112,28 +107,7 @@ function buildAuctionSection(
     totalClassBids: sectionClassBids.length,
     isAvailable: sectionStudentBids.length > 0,
     isComplete: sectionStudentBids.length === TOTAL_ROUNDS,
-    summary: describeAuction(config),
     ...profitStats,
-    studentPositiveBidBelowThresholdRate: computeThresholdRate(
-      sectionStudentBids,
-      config.participationThreshold,
-      'positive-below'
-    ),
-    classPositiveBidBelowThresholdRate: computeThresholdRate(
-      sectionClassBids,
-      config.participationThreshold,
-      'positive-below'
-    ),
-    studentZeroBidAboveThresholdRate: computeThresholdRate(
-      sectionStudentBids,
-      config.participationThreshold,
-      'zero-above'
-    ),
-    classZeroBidAboveThresholdRate: computeThresholdRate(
-      sectionClassBids,
-      config.participationThreshold,
-      'zero-above'
-    ),
   }
 }
 
@@ -299,37 +273,6 @@ function normalizeBid(bid: Bid): NormalizedBid {
   }
 }
 
-function computeThresholdRate(
-  bids: NormalizedBid[],
-  threshold: number | null,
-  mode: 'positive-below' | 'zero-above'
-) {
-  if (threshold == null) return null
-
-  const relevantBids = bids.filter((bid) =>
-    mode === 'positive-below' ? bid.private_value <= threshold : bid.private_value > threshold
-  )
-
-  if (relevantBids.length === 0) return null
-
-  const matchingBids = relevantBids.filter((bid) =>
-    mode === 'positive-below' ? bid.amount > 0 : bid.amount === 0
-  )
-
-  return matchingBids.length / relevantBids.length
-}
-
-function describeAuction(config: AuctionConfig) {
-  if (config.reservePrice != null || config.entryFee != null) {
-    return 'With a participation cost, only enter when your value clears the threshold. Bidding when your value is too low destroys profit; staying out costs nothing.'
-  }
-
-  if (config.key.startsWith('second')) {
-    return 'In a second-price auction the winner pays the highest losing bid, so you can bid your true value without leaving money on the table. Profit comes from winning when you have a high value.'
-  }
-
-  return 'In a first-price auction you pay your own bid, so shading below value creates surplus. Bid too high and you win but earn little; bid too low and you lose outright.'
-}
 
 function average(values: number[]) {
   const usable = values.filter((v) => Number.isFinite(v))
