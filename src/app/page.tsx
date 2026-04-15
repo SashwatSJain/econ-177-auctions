@@ -11,22 +11,6 @@ interface CardDef {
 
 const CARDS: CardDef[] = [
   {
-    key: 'first-2',
-    line1: 'First Price',
-    line2: 'Sealed Bid',
-    line3: '2-Bidder',
-    description:
-      'Students receive a random private value (0–100) and submit a sealed bid.',
-  },
-  {
-    key: 'first-5',
-    line1: 'First Price',
-    line2: 'Sealed Bid',
-    line3: '5-Bidder',
-    description:
-      'Same as the 2-bidder version but with 5 competing bidders.',
-  },
-  {
     key: 'second-2',
     line1: 'Second Price',
     line2: 'Sealed Bid',
@@ -43,12 +27,12 @@ const CARDS: CardDef[] = [
       'Vickrey-style auction with 5 bidders.',
   },
   {
-    key: 'first-2-entry25',
-    line1: 'First Price',
+    key: 'second-2-reserve50',
+    line1: 'Second Price',
     line2: '2-Bidder',
-    line3: '$25 Entry Fee',
+    line3: '$50 Reserve',
     description:
-      'First-price sealed bid with a $25 entry fee.',
+      'Second-price sealed bid with a $50 reserve price.',
   },
   {
     key: 'second-2-entry25',
@@ -59,6 +43,22 @@ const CARDS: CardDef[] = [
       'Second-price sealed bid with a $25 entry fee.',
   },
   {
+    key: 'first-2',
+    line1: 'First Price',
+    line2: 'Sealed Bid',
+    line3: '2-Bidder',
+    description:
+      'Students receive a random private value (0–100) and submit a sealed bid.',
+  },
+  {
+    key: 'first-5',
+    line1: 'First Price',
+    line2: 'Sealed Bid',
+    line3: '5-Bidder',
+    description:
+      'Same as the 2-bidder version but with 5 competing bidders.',
+  },
+  {
     key: 'first-2-reserve50',
     line1: 'First Price',
     line2: '2-Bidder',
@@ -67,12 +67,12 @@ const CARDS: CardDef[] = [
       'First-price sealed bid with a $50 reserve price.',
   },
   {
-    key: 'second-2-reserve50',
-    line1: 'Second Price',
+    key: 'first-2-entry25',
+    line1: 'First Price',
     line2: '2-Bidder',
-    line3: '$50 Reserve',
+    line3: '$25 Entry Fee',
     description:
-      'Second-price sealed bid with a $50 reserve price.',
+      'First-price sealed bid with a $25 entry fee.',
   },
   {
     key: 'common-value',
