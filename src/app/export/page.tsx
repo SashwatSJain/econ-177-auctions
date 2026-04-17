@@ -54,7 +54,7 @@ export default function ExportPage() {
           UC Santa Barbara · Econ 177
         </p>
         <h1 className="serif text-4xl mb-8" style={{ color: 'var(--text)' }}>
-          Download Your Data
+          Download Your Bid Data
         </h1>
 
         <form onSubmit={handleDownload} className="flex flex-col gap-4">
@@ -95,7 +95,7 @@ export default function ExportPage() {
 
         {status === 'empty' && (
           <p className="mt-5 text-sm" style={{ color: 'var(--text-muted)' }}>
-            No experiment data found for perm number <span style={{ color: 'var(--text)' }}>{netid.trim().toLowerCase()}</span>.
+            No bid data found for perm number <span style={{ color: 'var(--text)' }}>{netid.trim().toLowerCase()}</span>.
           </p>
         )}
 
