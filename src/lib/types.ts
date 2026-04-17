@@ -8,6 +8,25 @@ export interface Bid {
   created_at: string
 }
 
+export interface Experiment3Round {
+  id: string
+  student_id: string
+  treatment_key: string
+  block_index: number
+  round_in_treatment: number
+  global_round: number
+  bidder_count: number
+  seller_value: number
+  reserve_price: number
+  simulated_bids: number[]
+  highest_bid: number
+  second_highest_bid: number
+  sold: boolean
+  sale_price: number | null
+  profit: number
+  created_at: string
+}
+
 export interface RiskAversionResponse {
   id: string
   student_id: string
@@ -40,4 +59,46 @@ export interface AuctionConfig {
   nashSlope: number | null // null = piecewise
   participationThreshold: number | null // private value below which bid = 0
   nashFormula: (v: number) => number
+}
+
+export interface Experiment3TreatmentConfig {
+  key: string
+  title: string
+  shortTitle: string
+  bidderCount: number
+  sellerValue: number
+  blockIndex: number
+  rounds: number
+}
+
+export interface Experiment3RoundContext {
+  treatment: Experiment3TreatmentConfig
+  roundInTreatment: number
+  globalRound: number
+  sellerValue: number
+}
+
+export interface Experiment3BlockSummary {
+  treatmentKey: string
+  title: string
+  shortTitle: string
+  bidderCount: number
+  sellerValue: number
+  roundsCompleted: number
+  roundsExpected: number
+  totalProfit: number
+  averageProfit: number | null
+  saleRate: number | null
+  averageReserve: number | null
+  rows: Experiment3Round[]
+}
+
+export interface Experiment3OverallSummary {
+  totalRoundsCompleted: number
+  totalRoundsExpected: number
+  totalProfit: number
+  averageProfit: number | null
+  saleRate: number | null
+  blocksCompleted: number
+  blockSummaries: Experiment3BlockSummary[]
 }

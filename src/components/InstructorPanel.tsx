@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { AUCTION_CONFIGS, TOTAL_ROUNDS } from '@/lib/auction-config'
-import type { Bid, RiskAversionResponse } from '@/lib/types'
+import { EXPERIMENT3_TREATMENTS } from '@/lib/experiment3-config'
+import type { Bid, Experiment3Round, RiskAversionResponse } from '@/lib/types'
 
 // ── Risk aversion helpers ────────────────────────────────────────────────────
 
@@ -28,7 +29,7 @@ interface Props {
   userEmail: string
 }
 
-type TabKey = 'auctions' | 'assignment2'
+type TabKey = 'auctions' | 'experiment3' | 'assignment2'
 
 export default function InstructorPanel({ userEmail }: Props) {
   const router = useRouter()
@@ -36,6 +37,11 @@ export default function InstructorPanel({ userEmail }: Props) {
   const [selectedAuction, setSelectedAuction] = useState(AUCTION_CONFIGS[0].key)
   const [selectedRound, setSelectedRound] = useState<number | 'all'>('all')
   const [bids, setBids] = useState<Bid[]>([])
+  const [selectedExperiment3Treatment, setSelectedExperiment3Treatment] = useState(
+    EXPERIMENT3_TREATMENTS[0].key
+  )
+  const [selectedExperiment3Round, setSelectedExperiment3Round] = useState<number | 'all'>('all')
+  const [experiment3Rows, setExperiment3Rows] = useState<Experiment3Round[]>([])
   const [raRows, setRaRows] = useState<RiskAversionResponse[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -59,10 +65,23 @@ export default function InstructorPanel({ userEmail }: Props) {
     }
   }, [])
 
+  const fetchExperiment3Rows = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(
+        `/api/experiment3/rows?treatment_key=${encodeURIComponent(selectedExperiment3Treatment)}`
+      )
+      if (res.ok) setExperiment3Rows(await res.json())
+    } finally {
+      setLoading(false)
+    }
+  }, [selectedExperiment3Treatment])
+
   useEffect(() => {
     if (activeTab === 'auctions') fetchBids()
+    else if (activeTab === 'experiment3') fetchExperiment3Rows()
     else fetchRaRows()
-  }, [activeTab, fetchBids, fetchRaRows])
+  }, [activeTab, fetchBids, fetchExperiment3Rows, fetchRaRows])
 
   const handleSignOut = async () => {
     const supabase = createClient()
@@ -86,6 +105,16 @@ export default function InstructorPanel({ userEmail }: Props) {
     winnerMap[bid.round] !== undefined && bid.amount === winnerMap[bid.round]
 
   const currentConfig = AUCTION_CONFIGS.find((a) => a.key === selectedAuction)!
+  const experiment3RoundsWithData = Array.from(
+    new Set(experiment3Rows.map((row) => row.round_in_treatment))
+  ).sort((a, b) => a - b)
+  const filteredExperiment3Rows =
+    selectedExperiment3Round === 'all'
+      ? experiment3Rows
+      : experiment3Rows.filter((row) => row.round_in_treatment === selectedExperiment3Round)
+  const currentExperiment3Treatment = EXPERIMENT3_TREATMENTS.find(
+    (treatment) => treatment.key === selectedExperiment3Treatment
+  )!
 
   const handleExport = async () => {
     const XLSX = await import('xlsx')
@@ -122,6 +151,52 @@ export default function InstructorPanel({ userEmail }: Props) {
     XLSX.writeFile(wb, `${selectedAuction}-bids.xlsx`)
   }
 
+  const handleExperiment3Export = async () => {
+    const XLSX = await import('xlsx')
+    const wb = XLSX.utils.book_new()
+
+    const allRows = experiment3Rows.map((row, index) => ({
+      '#': index + 1,
+      'Student ID': row.student_id,
+      'Round In Treatment': row.round_in_treatment,
+      'Seller Value': row.seller_value,
+      'Reserve Price': row.reserve_price,
+      'Simulated Bids': row.simulated_bids.map((value) => Number(value).toFixed(2)).join(', '),
+      'Highest Bid': row.highest_bid,
+      'Second Highest Bid': row.second_highest_bid,
+      Sold: row.sold ? 'YES' : 'NO',
+      'Sale Price': row.sale_price ?? '—',
+      Profit: row.profit,
+      Time: new Date(row.created_at).toLocaleString(),
+    }))
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allRows), 'All Rows')
+
+    for (let round = 1; round <= 20; round++) {
+      const rowsForRound = experiment3Rows.filter((row) => row.round_in_treatment === round)
+      if (!rowsForRound.length) continue
+      const roundSheet = rowsForRound.map((row, index) => ({
+        '#': index + 1,
+        'Student ID': row.student_id,
+        'Seller Value': row.seller_value,
+        'Reserve Price': row.reserve_price,
+        'Simulated Bids': row.simulated_bids.map((value) => Number(value).toFixed(2)).join(', '),
+        'Highest Bid': row.highest_bid,
+        'Second Highest Bid': row.second_highest_bid,
+        Sold: row.sold ? 'YES' : 'NO',
+        'Sale Price': row.sale_price ?? '—',
+        Profit: row.profit,
+        Time: new Date(row.created_at).toLocaleString(),
+      }))
+      XLSX.utils.book_append_sheet(
+        wb,
+        XLSX.utils.json_to_sheet(roundSheet),
+        `Round ${round}`
+      )
+    }
+
+    XLSX.writeFile(wb, `${selectedExperiment3Treatment}-seller-auction.xlsx`)
+  }
+
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
       {/* Header */}
@@ -153,7 +228,7 @@ export default function InstructorPanel({ userEmail }: Props) {
       <div className="max-w-6xl mx-auto px-6 py-8">
         {/* Tab switcher */}
         <div className="flex gap-2 mb-8 border-b" style={{ borderColor: 'var(--border)' }}>
-          {(['auctions', 'assignment2'] as TabKey[]).map((tab) => (
+          {(['auctions', 'assignment2', 'experiment3'] as TabKey[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -164,7 +239,11 @@ export default function InstructorPanel({ userEmail }: Props) {
                 fontWeight: activeTab === tab ? 600 : 400,
               }}
             >
-              {tab === 'auctions' ? 'Auction Experiments' : 'Assignment 2: Risk Aversion'}
+              {tab === 'auctions'
+                ? 'Experiment 1: Auctions'
+                : tab === 'assignment2'
+                ? 'Experiment 2: Risk Aversion'
+                : 'Experiment 3: Seller Auction'}
             </button>
           ))}
         </div>
@@ -172,6 +251,26 @@ export default function InstructorPanel({ userEmail }: Props) {
         {/* ── Assignment 2 view ── */}
         {activeTab === 'assignment2' && (
           <RiskAversionView rows={raRows} loading={loading} onRefresh={fetchRaRows} />
+        )}
+
+        {activeTab === 'experiment3' && (
+          <Experiment3View
+            rows={filteredExperiment3Rows}
+            allRows={experiment3Rows}
+            loading={loading}
+            treatments={EXPERIMENT3_TREATMENTS}
+            selectedTreatmentKey={selectedExperiment3Treatment}
+            selectedRound={selectedExperiment3Round}
+            currentTreatment={currentExperiment3Treatment}
+            roundsWithData={experiment3RoundsWithData}
+            onSelectTreatment={(key) => {
+              setSelectedExperiment3Treatment(key)
+              setSelectedExperiment3Round('all')
+            }}
+            onSelectRound={setSelectedExperiment3Round}
+            onRefresh={fetchExperiment3Rows}
+            onExport={handleExperiment3Export}
+          />
         )}
 
         {/* ── Auctions view ── */}
@@ -358,6 +457,239 @@ export default function InstructorPanel({ userEmail }: Props) {
   )
 }
 
+// ── Experiment 3 instructor view ─────────────────────────────────────────────
+
+function Experiment3View({
+  rows,
+  allRows,
+  loading,
+  treatments,
+  selectedTreatmentKey,
+  selectedRound,
+  currentTreatment,
+  roundsWithData,
+  onSelectTreatment,
+  onSelectRound,
+  onRefresh,
+  onExport,
+}: {
+  rows: Experiment3Round[]
+  allRows: Experiment3Round[]
+  loading: boolean
+  treatments: typeof EXPERIMENT3_TREATMENTS
+  selectedTreatmentKey: string
+  selectedRound: number | 'all'
+  currentTreatment: (typeof EXPERIMENT3_TREATMENTS)[number]
+  roundsWithData: number[]
+  onSelectTreatment: (key: string) => void
+  onSelectRound: (value: number | 'all') => void
+  onRefresh: () => void
+  onExport: () => void
+}) {
+  const saleRate =
+    allRows.length > 0
+      ? allRows.filter((row) => row.sold).length / allRows.length
+      : 0
+  const averageProfit =
+    allRows.length > 0
+      ? allRows.reduce((sum, row) => sum + Number(row.profit), 0) / allRows.length
+      : 0
+
+  return (
+    <div>
+      <div className="mb-6">
+        <p className="text-xs tracking-widest uppercase mb-3" style={{ color: 'var(--text-muted)' }}>
+          Experiment 3 Treatment
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {treatments.map((treatment) => (
+            <button
+              key={treatment.key}
+              onClick={() => onSelectTreatment(treatment.key)}
+              className="text-xs px-3 py-1.5 rounded transition-all"
+              style={{
+                background: selectedTreatmentKey === treatment.key ? 'var(--navy)' : 'var(--surface)',
+                color: selectedTreatmentKey === treatment.key ? '#fff' : 'var(--text-muted)',
+                border: `1px solid ${selectedTreatmentKey === treatment.key ? 'var(--navy)' : 'var(--border)'}`,
+              }}
+            >
+              {treatment.shortTitle}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div
+        className="grid grid-cols-4 gap-4 rounded-xl p-4 mb-6"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+      >
+        <Stat label="Total Rows" value={allRows.length} />
+        <Stat label="Unique Students" value={new Set(allRows.map((row) => row.student_id)).size} />
+        <Stat label="Sale Rate" value={`${(saleRate * 100).toFixed(1)}%`} />
+        <Stat label="Avg Profit" value={`$${averageProfit.toFixed(2)}`} />
+      </div>
+
+      <div
+        className="rounded-lg px-4 py-3 mb-6 text-xs"
+        style={{
+          background: 'rgba(0,54,96,0.04)',
+          border: '1px solid rgba(0,54,96,0.1)',
+          color: 'var(--text-muted)',
+        }}
+      >
+        <span style={{ color: 'var(--navy)', fontWeight: 500 }}>Treatment Setup: </span>
+        {currentTreatment.bidderCount} bidders, seller value {currentTreatment.sellerValue}, 20 rounds.
+      </div>
+
+      <div className="flex flex-wrap gap-2 items-center justify-between mb-4">
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => onSelectRound('all')}
+            className="text-xs px-3 py-1.5 rounded transition-all"
+            style={{
+              background: selectedRound === 'all' ? 'var(--surface2)' : 'transparent',
+              color: selectedRound === 'all' ? 'var(--text)' : 'var(--text-muted)',
+              border: `1px solid ${selectedRound === 'all' ? 'var(--navy)' : 'var(--border)'}`,
+            }}
+          >
+            All Rounds
+          </button>
+          {roundsWithData.map((round) => (
+            <button
+              key={round}
+              onClick={() => onSelectRound(round)}
+              className="text-xs px-3 py-1.5 rounded transition-all"
+              style={{
+                background: selectedRound === round ? 'var(--surface2)' : 'transparent',
+                color: selectedRound === round ? 'var(--text)' : 'var(--text-muted)',
+                border: `1px solid ${selectedRound === round ? 'var(--navy)' : 'var(--border)'}`,
+              }}
+            >
+              Round {round}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={onRefresh}
+            className="btn-ghost text-xs px-3 py-1.5 rounded"
+            disabled={loading}
+          >
+            {loading ? 'Loading…' : '↻ Refresh'}
+          </button>
+          <button
+            onClick={onExport}
+            className="btn-gold text-xs px-3 py-1.5 rounded"
+            disabled={allRows.length === 0}
+          >
+            ⬇ Excel
+          </button>
+        </div>
+      </div>
+
+      {rows.length === 0 ? (
+        <div
+          className="rounded-xl p-12 text-center"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+        >
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+            {loading ? 'Loading rows…' : 'No Experiment 3 rows yet for this treatment.'}
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-xl overflow-auto" style={{ border: '1px solid var(--border)' }}>
+          <table className="w-full text-sm" style={{ minWidth: '1200px' }}>
+            <thead>
+              <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+                {[
+                  '#',
+                  'Student ID',
+                  'Round',
+                  'Seller Value',
+                  'Reserve',
+                  'All Bids',
+                  'Highest',
+                  'Second',
+                  'Sold',
+                  'Sale Price',
+                  'Profit',
+                  'Time',
+                ].map((header) => (
+                  <th
+                    key={header}
+                    className="text-left px-4 py-3 text-xs tracking-wide font-medium"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    {header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => (
+                <tr
+                  key={row.id}
+                  style={{
+                    background: row.sold ? (index % 2 === 0 ? '#fff' : 'var(--surface)') : 'rgba(239,68,68,0.04)',
+                    borderBottom: '1px solid var(--border)',
+                  }}
+                >
+                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {index + 1}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text)' }}>
+                    {row.student_id}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text)' }}>
+                    {row.round_in_treatment}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text)' }}>
+                    ${Number(row.seller_value).toFixed(2)}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text)' }}>
+                    ${Number(row.reserve_price).toFixed(2)}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {row.simulated_bids.map((value) => `$${Number(value).toFixed(2)}`).join(', ')}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text)' }}>
+                    ${Number(row.highest_bid).toFixed(2)}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text)' }}>
+                    ${Number(row.second_highest_bid).toFixed(2)}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text)' }}>
+                    {row.sold ? 'YES' : 'NO'}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text)' }}>
+                    {row.sale_price == null ? '—' : `$${Number(row.sale_price).toFixed(2)}`}
+                  </td>
+                  <td
+                    className="px-4 py-2.5 text-xs font-medium"
+                    style={{ color: Number(row.profit) >= 0 ? 'var(--navy)' : '#b91c1c' }}
+                  >
+                    ${Number(row.profit).toFixed(2)}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {new Date(row.created_at).toLocaleString('en-US', {
+                      month: '2-digit',
+                      day: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                    })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Risk Aversion instructor view ────────────────────────────────────────────
 
 function RiskAversionView({
@@ -498,7 +830,7 @@ function RiskAversionView({
   )
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({ label, value }: { label: string; value: number | string }) {
   return (
     <div>
       <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>

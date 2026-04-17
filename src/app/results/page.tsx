@@ -2,10 +2,11 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 import ResultsDashboard from '@/components/ResultsDashboard'
+import { buildExperiment3StudentResultsDashboard } from '@/lib/experiment3-results'
 import { AUCTION_CONFIGS } from '@/lib/auction-config'
 import { buildStudentResultsDashboard } from '@/lib/results'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
-import type { Bid } from '@/lib/types'
+import type { Bid, Experiment3Round } from '@/lib/types'
 
 const auctionKeys = AUCTION_CONFIGS.map((config) => config.key)
 
@@ -45,6 +46,7 @@ export default async function ResultsPage({ searchParams }: ResultsPageProps) {
   const normalizedPerm = trimmedPerm.toLowerCase()
 
   let dashboard = null
+  let experiment3Dashboard = null
   let message: string | null = null
   let messageTone: 'empty' | 'error' | null = null
 
@@ -56,7 +58,11 @@ export default async function ResultsPage({ searchParams }: ResultsPageProps) {
     try {
       const supabase = createAdminSupabaseClient()
 
-      const [{ data: studentRows, error: studentError }, classRows] = await Promise.all([
+      const [
+        { data: studentRows, error: studentError },
+        { data: experiment3Rows, error: experiment3Error },
+        classRows,
+      ] = await Promise.all([
         supabase
           .from('bids')
           .select('*')
@@ -65,20 +71,34 @@ export default async function ResultsPage({ searchParams }: ResultsPageProps) {
           .order('auction_type', { ascending: true })
           .order('round', { ascending: true })
           .limit(200),
+        supabase
+          .from('experiment3_rounds')
+          .select('*')
+          .eq('student_id', normalizedPerm)
+          .order('global_round', { ascending: true }),
         getClassBids(),
       ])
 
       if (studentError) throw studentError
+      if (experiment3Error) throw experiment3Error
 
-      if (!studentRows || studentRows.length === 0) {
-        message = `No auction records were found for perm ${trimmedPerm}.`
+      if ((!studentRows || studentRows.length === 0) && (!experiment3Rows || experiment3Rows.length === 0)) {
+        message = `No experiment records were found for perm ${trimmedPerm}.`
         messageTone = 'empty'
       } else {
-        dashboard = buildStudentResultsDashboard(
-          normalizedPerm,
-          studentRows as Bid[],
-          classRows as Bid[]
-        )
+        if (studentRows && studentRows.length > 0) {
+          dashboard = buildStudentResultsDashboard(
+            normalizedPerm,
+            studentRows as Bid[],
+            classRows as Bid[]
+          )
+        }
+
+        if (experiment3Rows && experiment3Rows.length > 0) {
+          experiment3Dashboard = buildExperiment3StudentResultsDashboard(
+            experiment3Rows as Experiment3Round[]
+          )
+        }
       }
     } catch (error) {
       message = error instanceof Error ? error.message : 'Something went wrong while loading results.'
@@ -150,7 +170,12 @@ export default async function ResultsPage({ searchParams }: ResultsPageProps) {
           ) : null}
         </div>
 
-        {dashboard ? <ResultsDashboard dashboard={dashboard} /> : null}
+        {dashboard || experiment3Dashboard ? (
+          <ResultsDashboard
+            dashboard={dashboard}
+            experiment3Dashboard={experiment3Dashboard}
+          />
+        ) : null}
       </div>
     </main>
   )

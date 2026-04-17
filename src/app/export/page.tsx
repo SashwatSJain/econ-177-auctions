@@ -34,7 +34,7 @@ export default function ExportPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${trimmed.toLowerCase()}-bids.csv`
+    a.download = `${trimmed.toLowerCase()}-experiment-data.csv`
     a.click()
     URL.revokeObjectURL(url)
     setStatus('idle')
@@ -95,7 +95,7 @@ export default function ExportPage() {
 
         {status === 'empty' && (
           <p className="mt-5 text-sm" style={{ color: 'var(--text-muted)' }}>
-            No bids found for perm number <span style={{ color: 'var(--text)' }}>{netid.trim().toLowerCase()}</span>.
+            No experiment data found for perm number <span style={{ color: 'var(--text)' }}>{netid.trim().toLowerCase()}</span>.
           </p>
         )}
 
