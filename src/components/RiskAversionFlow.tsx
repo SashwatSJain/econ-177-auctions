@@ -20,7 +20,7 @@ export default function RiskAversionFlow() {
 
   async function handleIdentify() {
     const id = studentId.trim()
-    if (!id) { setError('Please enter your Student ID.'); return }
+    if (!id) { setError('Please enter your perm number.'); return }
     setError('')
     setLoading(true)
     try {
@@ -150,7 +150,7 @@ export default function RiskAversionFlow() {
                 Identify Yourself
               </h2>
               <p className="text-sm mb-8" style={{ color: 'var(--text-muted)' }}>
-                Enter your student ID to begin.
+                Enter your perm number to begin.
               </p>
               <input
                 type="text"
@@ -180,7 +180,7 @@ export default function RiskAversionFlow() {
                 Your Indifference Probabilities
               </h2>
               <p className="text-xs mb-6" style={{ color: 'var(--text-muted)' }}>
-                Student ID: {studentId.trim()}
+                Perm number: {studentId.trim()}
               </p>
 
               {/* Scenarios card */}
@@ -293,7 +293,7 @@ export default function RiskAversionFlow() {
                 Review & Submit
               </h2>
               <p className="text-xs mb-6" style={{ color: 'var(--text-muted)' }}>
-                Student ID: {studentId.trim()}
+                Perm number: {studentId.trim()}
               </p>
 
               <div className="rounded-xl overflow-hidden mb-5" style={{ border: '1px solid var(--border)' }}>
@@ -442,4 +442,3 @@ function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
     </div>
   )
 }
-

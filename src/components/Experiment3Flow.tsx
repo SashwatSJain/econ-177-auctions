@@ -4,19 +4,26 @@ import Link from 'next/link'
 import { useState } from 'react'
 
 import { EXPERIMENT3_ROUNDS_PER_TREATMENT } from '@/lib/experiment3-config'
-import type { Experiment3ProgressPayload } from '@/lib/experiment3'
+import type { Experiment3ProgressPayload, Experiment3SubmissionResult } from '@/lib/experiment3'
 import type {
   Experiment3BlockSummary,
   Experiment3OverallSummary,
+  Experiment3Round,
   Experiment3RoundContext,
 } from '@/lib/types'
 
-type Panel = 'identify' | 'value' | 'reserve' | 'confirm' | 'block-summary' | 'complete'
+type Panel =
+  | 'identify'
+  | 'reserve'
+  | 'round-feedback'
+  | 'block-summary'
+  | 'complete'
 
 export default function Experiment3Flow() {
   const [panel, setPanel] = useState<Panel>('identify')
   const [studentId, setStudentId] = useState('')
   const [currentContext, setCurrentContext] = useState<Experiment3RoundContext | null>(null)
+  const [lastRound, setLastRound] = useState<Experiment3Round | null>(null)
   const [nextContext, setNextContext] = useState<Experiment3RoundContext | null>(null)
   const [reservePrice, setReservePrice] = useState('')
   const [roundsCompletedInBlock, setRoundsCompletedInBlock] = useState(0)
@@ -60,6 +67,7 @@ export default function Experiment3Flow() {
     setStudentId(id)
     setReservePrice('')
     setError('')
+    setLastRound(null)
     setBlockSummary(progress.blockSummary)
     setOverallSummary(progress.overallSummary)
     setNextContext(progress.next)
@@ -67,7 +75,7 @@ export default function Experiment3Flow() {
     if (progress.phase === 'round' && progress.current) {
       setCurrentContext(progress.current)
       setRoundsCompletedInBlock(progress.current.roundInTreatment - 1)
-      setPanel('value')
+      setPanel('reserve')
       return
     }
 
@@ -110,17 +118,14 @@ export default function Experiment3Flow() {
       if (!res.ok) throw new Error(json.error ?? 'Failed to record reserve price.')
 
       setReservePrice('')
-      setRoundsCompletedInBlock(currentContext.roundInTreatment)
-      setBlockSummary(json.blockSummary ?? null)
-      setOverallSummary(json.overallSummary ?? null)
-      setNextContext(json.next ?? null)
+      const submission = json as Experiment3SubmissionResult
 
-      if (json.blockComplete) {
-        setCurrentContext(null)
-        setPanel('block-summary')
-      } else {
-        setPanel('confirm')
-      }
+      setLastRound(submission.row)
+      setRoundsCompletedInBlock(currentContext.roundInTreatment)
+      setBlockSummary(submission.blockSummary)
+      setOverallSummary(submission.overallSummary)
+      setNextContext(submission.next)
+      setPanel('round-feedback')
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to record reserve price.')
     } finally {
@@ -128,15 +133,23 @@ export default function Experiment3Flow() {
     }
   }
 
-  function handleStartNextRound() {
-    if (!currentContext) return
+  function handleContinueAfterRound() {
+    if (!lastRound || !currentContext) return
+
+    if (lastRound.round_in_treatment >= EXPERIMENT3_ROUNDS_PER_TREATMENT) {
+      setCurrentContext(null)
+      setPanel('block-summary')
+      return
+    }
+
     setCurrentContext({
       ...currentContext,
       roundInTreatment: currentContext.roundInTreatment + 1,
       globalRound: currentContext.globalRound + 1,
     })
+    setLastRound(null)
     setReservePrice('')
-    setPanel('value')
+    setPanel('reserve')
   }
 
   function handleContinueAfterBlock() {
@@ -146,7 +159,7 @@ export default function Experiment3Flow() {
       setBlockSummary(null)
       setNextContext(null)
       setReservePrice('')
-      setPanel('value')
+      setPanel('reserve')
       return
     }
 
@@ -156,7 +169,7 @@ export default function Experiment3Flow() {
   }
 
   const progressDotsCompleted =
-    panel === 'confirm'
+    panel === 'round-feedback'
       ? roundsCompletedInBlock
       : panel === 'block-summary' || panel === 'complete'
       ? EXPERIMENT3_ROUNDS_PER_TREATMENT
@@ -252,62 +265,9 @@ export default function Experiment3Flow() {
             </div>
           )}
 
-          {panel === 'value' && currentContext ? (
-            <div className="max-w-md mx-auto">
-              <StepIndicator step={2} />
-              <h2 className="serif text-3xl mb-2 mt-6" style={{ color: 'var(--text)' }}>
-                Seller Round Setup
-              </h2>
-              <p className="text-xs mb-6" style={{ color: 'var(--text-muted)' }}>
-                {currentContext.treatment.shortTitle} · Round {currentContext.roundInTreatment} of{' '}
-                {EXPERIMENT3_ROUNDS_PER_TREATMENT} · {studentId.trim()}
-              </p>
-              <div
-                className="rounded-xl p-8 text-center mb-6"
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-              >
-                <p
-                  className="text-xs uppercase tracking-widest mb-2"
-                  style={{ color: 'var(--text-muted)' }}
-                >
-                  Your seller value this round
-                </p>
-                <p className="serif text-5xl" style={{ color: 'var(--navy)' }}>
-                  ${currentContext.sellerValue.toFixed(2)}
-                </p>
-              </div>
-              <div
-                className="text-xs rounded-lg px-4 py-3 mb-6"
-                style={{
-                  background: 'rgba(0,54,96,0.04)',
-                  border: '1px solid rgba(0,54,96,0.1)',
-                  color: 'var(--text-muted)',
-                  lineHeight: 1.7,
-                }}
-              >
-                Choose a reserve price. Your outcome will be revealed after all{' '}
-                {EXPERIMENT3_ROUNDS_PER_TREATMENT} rounds in this block.
-              </div>
-              <div className="flex gap-3">
-                <button
-                  className="btn-ghost flex-1 rounded-lg px-4 py-3 text-sm"
-                  onClick={() => setPanel('identify')}
-                >
-                  ← Back
-                </button>
-                <button
-                  className="btn-gold flex-1 rounded-lg px-4 py-3 text-sm"
-                  onClick={() => setPanel('reserve')}
-                >
-                  Continue to Set Reserve →
-                </button>
-              </div>
-            </div>
-          ) : null}
-
           {panel === 'reserve' && currentContext ? (
             <div className="max-w-md mx-auto">
-              <StepIndicator step={3} />
+              <StepIndicator step={2} />
               <h2 className="serif text-3xl mb-2 mt-6" style={{ color: 'var(--text)' }}>
                 Set Your Reserve
               </h2>
@@ -354,7 +314,7 @@ export default function Experiment3Flow() {
               <div className="flex gap-3 mt-2">
                 <button
                   className="btn-ghost flex-1 rounded-lg px-4 py-3 text-sm"
-                  onClick={() => setPanel('value')}
+                  onClick={() => setPanel('identify')}
                 >
                   ← Back
                 </button>
@@ -369,28 +329,100 @@ export default function Experiment3Flow() {
             </div>
           ) : null}
 
-          {panel === 'confirm' && currentContext ? (
-            <div className="max-w-md mx-auto text-center">
-              <div
-                className="text-4xl mb-6 w-14 h-14 rounded-full flex items-center justify-center mx-auto"
-                style={{ background: 'rgba(0,54,96,0.08)', color: 'var(--navy)' }}
-              >
-                ✓
+          {panel === 'round-feedback' && lastRound ? (
+            <div className="max-w-4xl mx-auto">
+              <div className="text-center mb-8">
+                <div
+                  className="text-4xl mb-6 w-14 h-14 rounded-full flex items-center justify-center mx-auto"
+                  style={{ background: 'rgba(0,54,96,0.08)', color: 'var(--navy)' }}
+                >
+                  ✓
+                </div>
+                <h2 className="serif text-3xl mb-2" style={{ color: 'var(--text)' }}>
+                  Round {lastRound.round_in_treatment} Feedback
+                </h2>
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                  Your reserve is matched against a fresh random bidder draw each round.
+                </p>
               </div>
-              <h2 className="serif text-3xl mb-2" style={{ color: 'var(--text)' }}>
-                Round {roundsCompletedInBlock} Recorded
-              </h2>
-              <p className="text-sm mb-8" style={{ color: 'var(--text-muted)' }}>
-                {EXPERIMENT3_ROUNDS_PER_TREATMENT - roundsCompletedInBlock} round
-                {EXPERIMENT3_ROUNDS_PER_TREATMENT - roundsCompletedInBlock !== 1 ? 's' : ''}{' '}
-                remaining in this block.
-              </p>
-              <button
-                className="btn-gold w-full rounded-lg px-4 py-3 text-sm"
-                onClick={handleStartNextRound}
+
+              <div
+                className="grid gap-3 sm:grid-cols-4 rounded-xl p-4 mb-6"
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
               >
-                Start Round {currentContext.roundInTreatment + 1} →
-              </button>
+                <SummaryStat label="Your Reserve" value={formatMoney(lastRound.reserve_price)} />
+                <SummaryStat
+                  label="Sale Price"
+                  value={
+                    lastRound.sale_price == null ? 'No sale' : formatMoney(lastRound.sale_price)
+                  }
+                />
+                <SummaryStat label="Profit" value={formatMoney(lastRound.profit)} />
+                <SummaryStat label="Sold" value={lastRound.sold ? 'Yes' : 'No'} />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-[1.4fr_1fr] mb-6">
+                <div
+                  className="rounded-xl p-5"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+                >
+                  <p
+                    className="text-xs uppercase tracking-[0.18em] mb-3"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    Random Bidder Bids
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {lastRound.simulated_bids.map((value, index) => (
+                      <span
+                        key={`${lastRound.id}-${index}`}
+                        className="rounded-full px-3 py-1.5 text-sm"
+                        style={{
+                          background: 'rgba(0,54,96,0.08)',
+                          color: 'var(--navy)',
+                          border: '1px solid rgba(0,54,96,0.12)',
+                        }}
+                      >
+                        {formatMoney(value)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-xl p-5"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+                >
+                  <p
+                    className="text-xs uppercase tracking-[0.18em] mb-3"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    Round Details
+                  </p>
+                  <div className="grid gap-3 text-sm">
+                    <SummaryCell label="Highest Bid" value={formatMoney(lastRound.highest_bid)} />
+                    <SummaryCell
+                      label="Second Highest"
+                      value={formatMoney(lastRound.second_highest_bid)}
+                    />
+                    <SummaryCell
+                      label="Seller Value"
+                      value={formatMoney(lastRound.seller_value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="max-w-md mx-auto">
+                <button
+                  className="btn-gold w-full rounded-lg px-4 py-3 text-sm"
+                  onClick={handleContinueAfterRound}
+                >
+                  {lastRound.round_in_treatment < EXPERIMENT3_ROUNDS_PER_TREATMENT
+                    ? `Start Round ${lastRound.round_in_treatment + 1} →`
+                    : `View ${currentContext?.treatment.shortTitle ?? 'Block'} Summary →`}
+                </button>
+              </div>
             </div>
           ) : null}
 
@@ -408,7 +440,7 @@ export default function Experiment3Flow() {
                     {blockSummary.shortTitle} Complete
                   </h2>
                   <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                    Feedback for all {EXPERIMENT3_ROUNDS_PER_TREATMENT} rounds in this block.
+                    Summary across all {EXPERIMENT3_ROUNDS_PER_TREATMENT} rounds in this block.
                   </p>
                 </div>
 
@@ -595,8 +627,8 @@ export default function Experiment3Flow() {
   )
 }
 
-function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
-  const steps = ['Identify', 'Seller Value', 'Reserve']
+function StepIndicator({ step }: { step: 1 | 2 }) {
+  const steps = ['Identify', 'Reserve']
   return (
     <div className="flex gap-2 items-center">
       {steps.map((label, index) => {

@@ -87,12 +87,39 @@ const EXP2_CARDS: CardDef[] = [
 
 const EXP3_CARDS: CardDef[] = [
   {
-    key: 'experiment3',
-    line1: 'Experiment 3',
-    line2: 'Seller Reserve',
-    line3: 'Auction',
+    key: 'experiment3-2-0',
+    line1: 'Experiment 3.1',
+    line2: '2 Bidders',
+    line3: 'Seller Value 0',
     description:
-      'Set reserve prices as a seller across four auction blocks with simulated bidder bids.',
+      'Seller-side reserve setting with 2 random bidder bids and a seller value of $0.',
+    href: '/experiment3',
+  },
+  {
+    key: 'experiment3-5-0',
+    line1: 'Experiment 3.2',
+    line2: '5 Bidders',
+    line3: 'Seller Value 0',
+    description:
+      'Seller-side reserve setting with 5 random bidder bids and a seller value of $0.',
+    href: '/experiment3',
+  },
+  {
+    key: 'experiment3-2-30',
+    line1: 'Experiment 3.3',
+    line2: '2 Bidders',
+    line3: 'Seller Value 30',
+    description:
+      'Seller-side reserve setting with 2 random bidder bids and a seller value of $30.',
+    href: '/experiment3',
+  },
+  {
+    key: 'experiment3-5-30',
+    line1: 'Experiment 3.4',
+    line2: '5 Bidders',
+    line3: 'Seller Value 30',
+    description:
+      'Seller-side reserve setting with 5 random bidder bids and a seller value of $30.',
     href: '/experiment3',
   },
 ]
@@ -122,7 +149,7 @@ const HOME_TABS: {
     key: 'exp3',
     label: 'Exp 3',
     title: 'Seller Reserve Auction',
-    description: 'The new seller-side reserve-setting experiment with four treatment blocks.',
+    description: 'Four seller-side reserve-setting treatment blocks, shown separately below.',
     cards: EXP3_CARDS,
   },
 ]

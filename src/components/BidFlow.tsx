@@ -31,7 +31,7 @@ export default function BidFlow({ auctionKey }: Props) {
   // Step 1 → Step 2: fetch progress, generate private value
   const handleReveal = useCallback(async () => {
     const id = studentId.trim()
-    if (!id) { setError('Please enter your Student ID.'); return }
+    if (!id) { setError('Please enter your perm number.'); return }
     setError('')
     setLoading(true)
 
@@ -173,7 +173,7 @@ export default function BidFlow({ auctionKey }: Props) {
                 Identify Yourself
               </h2>
               <p className="text-sm mb-8" style={{ color: 'var(--text-muted)' }}>
-                Enter your student ID to begin.
+                Enter your perm number to begin.
               </p>
               <input
                 type="text"
