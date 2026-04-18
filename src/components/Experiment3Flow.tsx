@@ -202,11 +202,7 @@ export default function Experiment3Flow() {
           {Array.from({ length: EXPERIMENT3_ROUNDS_PER_TREATMENT }).map((_, index) => {
             let cls = 'round-dot'
             if (index < progressDotsCompleted) cls += ' completed'
-            else if (
-              currentContext &&
-              index === currentContext.roundInTreatment - 1 &&
-              panel !== 'confirm'
-            ) {
+            else if (currentContext && index === currentContext.roundInTreatment - 1) {
               cls += ' current'
             }
             return <span key={index} className={cls} />
