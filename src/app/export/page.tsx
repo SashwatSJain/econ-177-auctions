@@ -2,43 +2,77 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import {
+  EXPORT_DATASETS,
+  getExportDataset,
+  type ExportDatasetKey,
+} from '@/lib/export-datasets'
 
 export default function ExportPage() {
   const [netid, setNetid] = useState('')
-  const [status, setStatus] = useState<'idle' | 'loading' | 'empty' | 'error'>('idle')
-  const [errorMsg, setErrorMsg] = useState('')
+  const [activeDownload, setActiveDownload] = useState<ExportDatasetKey | null>(null)
+  const [status, setStatus] = useState<{
+    kind: 'idle' | 'empty' | 'error'
+    datasetKey: ExportDatasetKey | null
+    message: string
+  }>({
+    kind: 'idle',
+    datasetKey: null,
+    message: '',
+  })
 
-  async function handleDownload(e: React.FormEvent) {
-    e.preventDefault()
+  async function handleDownload(datasetKey: ExportDatasetKey) {
     const trimmed = netid.trim()
     if (!trimmed) return
 
-    setStatus('loading')
-    setErrorMsg('')
+    setActiveDownload(datasetKey)
+    setStatus({ kind: 'idle', datasetKey: null, message: '' })
 
-    const res = await fetch(`/api/export?netid=${encodeURIComponent(trimmed)}`)
+    try {
+      const res = await fetch(
+        `/api/export?netid=${encodeURIComponent(trimmed)}&dataset=${encodeURIComponent(datasetKey)}`
+      )
 
-    if (res.status === 404) {
-      setStatus('empty')
-      return
+      if (res.status === 404) {
+        setStatus({
+          kind: 'empty',
+          datasetKey,
+          message: `No data found for perm number ${trimmed.toLowerCase()}.`,
+        })
+        return
+      }
+
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        setStatus({
+          kind: 'error',
+          datasetKey,
+          message: json.error ?? 'Something went wrong.',
+        })
+        return
+      }
+
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const dataset = getExportDataset(datasetKey)
+      a.href = url
+      a.download = `${trimmed.toLowerCase()}-${dataset?.filenameSuffix ?? 'experiment-data'}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      setStatus({ kind: 'idle', datasetKey: null, message: '' })
+    } catch {
+      setStatus({
+        kind: 'error',
+        datasetKey,
+        message: 'Unable to download the export right now.',
+      })
+    } finally {
+      setActiveDownload(null)
     }
-
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({}))
-      setErrorMsg(json.error ?? 'Something went wrong.')
-      setStatus('error')
-      return
-    }
-
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${trimmed.toLowerCase()}-experiment-data.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-    setStatus('idle')
   }
+
+  const statusDataset = status.datasetKey ? getExportDataset(status.datasetKey) : null
 
   return (
     <main className="min-h-screen" style={{ background: 'var(--bg)' }}>
@@ -54,10 +88,10 @@ export default function ExportPage() {
           UC Santa Barbara · Econ 177
         </p>
         <h1 className="serif text-4xl mb-8" style={{ color: 'var(--text)' }}>
-          Download Your Bid Data
+          Download Your Experiment Data
         </h1>
 
-        <form onSubmit={handleDownload} className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label
               htmlFor="netid"
@@ -70,7 +104,10 @@ export default function ExportPage() {
               id="netid"
               type="text"
               value={netid}
-              onChange={e => { setNetid(e.target.value); setStatus('idle') }}
+              onChange={e => {
+                setNetid(e.target.value)
+                setStatus({ kind: 'idle', datasetKey: null, message: '' })
+              }}
               placeholder="e.g. 1234567"
               autoComplete="off"
               spellCheck={false}
@@ -83,25 +120,54 @@ export default function ExportPage() {
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={status === 'loading' || !netid.trim()}
-            className="rounded-md px-4 py-2 text-sm font-semibold tracking-wide transition-opacity disabled:opacity-40"
-            style={{ background: 'var(--navy)', color: '#fff' }}
-          >
-            {status === 'loading' ? 'Fetching…' : 'Download CSV'}
-          </button>
-        </form>
+          <p className="text-xs" style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>
+            Choose a separate CSV export for each experiment.
+          </p>
 
-        {status === 'empty' && (
+          <div className="flex flex-col gap-3">
+            {EXPORT_DATASETS.map((dataset) => {
+              const isLoading = activeDownload === dataset.key
+
+              return (
+                <div
+                  key={dataset.key}
+                  className="rounded-lg p-4"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+                >
+                  <div className="mb-3">
+                    <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                      {dataset.title}
+                    </h2>
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                      {dataset.description}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(dataset.key)}
+                    disabled={activeDownload !== null || !netid.trim()}
+                    className="rounded-md px-4 py-2 text-sm font-semibold tracking-wide transition-opacity disabled:opacity-40"
+                    style={{ background: 'var(--navy)', color: '#fff' }}
+                  >
+                    {isLoading ? 'Fetching…' : 'Download CSV'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {status.kind === 'empty' && statusDataset && (
           <p className="mt-5 text-sm" style={{ color: 'var(--text-muted)' }}>
-            No bid data found for perm number <span style={{ color: 'var(--text)' }}>{netid.trim().toLowerCase()}</span>.
+            No {statusDataset.title.toLowerCase()} data found for perm number{' '}
+            <span style={{ color: 'var(--text)' }}>{netid.trim().toLowerCase()}</span>.
           </p>
         )}
 
-        {status === 'error' && (
+        {status.kind === 'error' && (
           <p className="mt-5 text-sm" style={{ color: '#c0392b' }}>
-            {errorMsg}
+            {status.message}
           </p>
         )}
       </div>
