@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { AUCTION_CONFIGS, TOTAL_ROUNDS } from '@/lib/auction-config'
@@ -457,6 +457,351 @@ export default function InstructorPanel({ userEmail }: Props) {
   )
 }
 
+// ── Experiment 3 charts ──────────────────────────────────────────────────────
+
+type ChartProps = {
+  data: { x: number; y: number }[]
+  yLabel: string
+  color: string
+  yMin?: number
+  yMax?: number
+  referenceLine?: number
+  referenceLabel?: string
+  formatY?: (v: number) => string
+}
+
+function Exp3LineChart({
+  data,
+  yLabel,
+  color,
+  yMin,
+  yMax,
+  referenceLine,
+  referenceLabel,
+  formatY = (v) => v.toFixed(1),
+}: ChartProps) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
+
+  const W = 480
+  const H = 200
+  const PAD = { top: 20, right: 56, bottom: 32, left: 48 }
+  const innerW = W - PAD.left - PAD.right
+  const innerH = H - PAD.top - PAD.bottom
+
+  if (data.length === 0) {
+    return (
+      <div
+        className="flex items-center justify-center rounded-lg"
+        style={{ height: `${H}px`, background: 'var(--surface)', border: '1px solid var(--border)' }}
+      >
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>No data yet</span>
+      </div>
+    )
+  }
+
+  const xs = data.map((d) => d.x)
+  const ys = data.map((d) => d.y)
+  const xMin = Math.min(...xs)
+  const xMax = Math.max(...xs)
+  const rawYMin = yMin ?? Math.min(...ys, ...(referenceLine != null ? [referenceLine] : []))
+  const rawYMax = yMax ?? Math.max(...ys, ...(referenceLine != null ? [referenceLine] : []))
+  const yPadding = (rawYMax - rawYMin) * 0.12 || 5
+  const computedYMin = rawYMin - yPadding
+  const computedYMax = rawYMax + yPadding
+
+  const sx = (x: number) => PAD.left + ((x - xMin) / (xMax - xMin || 1)) * innerW
+  const sy = (y: number) =>
+    PAD.top + (1 - (y - computedYMin) / (computedYMax - computedYMin || 1)) * innerH
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const svg = svgRef.current
+    if (!svg) return
+    const rect = svg.getBoundingClientRect()
+    const mouseX = ((e.clientX - rect.left) / rect.width) * W
+    let best = 0
+    let bestDist = Infinity
+    data.forEach((d, i) => {
+      const dist = Math.abs(sx(d.x) - mouseX)
+      if (dist < bestDist) { bestDist = dist; best = i }
+    })
+    setHoveredIdx(best)
+  }
+
+  const polyPoints = data.map((d) => `${sx(d.x)},${sy(d.y)}`).join(' ')
+  const yTicks = 4
+  const yTickVals = Array.from({ length: yTicks + 1 }, (_, i) =>
+    computedYMin + (i / yTicks) * (computedYMax - computedYMin)
+  )
+  const xLabelSet = new Set([1, 5, 10, 15, 20])
+
+  const hovered = hoveredIdx != null ? data[hoveredIdx] : null
+
+  // Clamp tooltip box so it stays inside the plot area
+  const TW = 72
+  const TH = 34
+  const tooltipX = hovered
+    ? Math.min(Math.max(sx(hovered.x) - TW / 2, PAD.left), PAD.left + innerW - TW)
+    : 0
+  const tooltipY = hovered
+    ? sy(hovered.y) - TH - 10 < PAD.top
+      ? sy(hovered.y) + 10
+      : sy(hovered.y) - TH - 10
+    : 0
+
+  return (
+    <svg
+      ref={svgRef}
+      viewBox={`0 0 ${W} ${H}`}
+      className="w-full"
+      style={{ display: 'block', cursor: 'crosshair' }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => setHoveredIdx(null)}
+    >
+      {/* Grid lines */}
+      {yTickVals.map((v, i) => (
+        <line key={i} x1={PAD.left} y1={sy(v)} x2={PAD.left + innerW} y2={sy(v)}
+          stroke="var(--border)" strokeWidth={1} />
+      ))}
+      {/* Y axis tick labels */}
+      {yTickVals.map((v, i) => (
+        <text key={i} x={PAD.left - 5} y={sy(v) + 4} textAnchor="end" fontSize={9} fill="var(--text-muted)">
+          {formatY(v)}
+        </text>
+      ))}
+      {/* X axis tick labels */}
+      {xs.map((x) =>
+        xLabelSet.has(x) || xs.length <= 5 ? (
+          <text key={x} x={sx(x)} y={H - PAD.bottom + 14} textAnchor="middle" fontSize={9} fill="var(--text-muted)">
+            {x}
+          </text>
+        ) : null
+      )}
+      {/* Reference line */}
+      {referenceLine != null && (
+        <>
+          <line x1={PAD.left} y1={sy(referenceLine)} x2={PAD.left + innerW} y2={sy(referenceLine)}
+            stroke="var(--gold)" strokeWidth={1.5} strokeDasharray="4 3" />
+          {referenceLabel && (
+            <text x={PAD.left + innerW + 4} y={sy(referenceLine) + 4}
+              fontSize={8} fill="var(--gold)" fontWeight={600}>
+              {referenceLabel}
+            </text>
+          )}
+        </>
+      )}
+      {/* Hover crosshair */}
+      {hovered && (
+        <line x1={sx(hovered.x)} y1={PAD.top} x2={sx(hovered.x)} y2={PAD.top + innerH}
+          stroke={color} strokeWidth={1} strokeOpacity={0.25} strokeDasharray="3 2" />
+      )}
+      {/* Data line */}
+      <polyline points={polyPoints} fill="none" stroke={color} strokeWidth={2}
+        strokeLinejoin="round" strokeLinecap="round" />
+      {/* Data point dots — grow on hover */}
+      {data.map((d, i) => (
+        <circle
+          key={i}
+          cx={sx(d.x)} cy={sy(d.y)}
+          r={hoveredIdx === i ? 5 : 3}
+          fill={hoveredIdx === i ? '#fff' : color}
+          stroke={color}
+          strokeWidth={hoveredIdx === i ? 2 : 0}
+        />
+      ))}
+      {/* Y axis label */}
+      <text x={10} y={H / 2} textAnchor="middle" fontSize={9} fill="var(--text-muted)"
+        transform={`rotate(-90, 10, ${H / 2})`}>
+        {yLabel}
+      </text>
+      {/* X axis label */}
+      <text x={PAD.left + innerW / 2} y={H - 2} textAnchor="middle" fontSize={9} fill="var(--text-muted)">
+        Round
+      </text>
+      {/* Tooltip */}
+      {hovered && (
+        <g>
+          <rect x={tooltipX} y={tooltipY} width={TW} height={TH} rx={4}
+            fill="var(--navy)" opacity={0.93} />
+          <text x={tooltipX + TW / 2} y={tooltipY + 13} textAnchor="middle"
+            fontSize={8.5} fill="rgba(255,255,255,0.75)">
+            Round {hovered.x}
+          </text>
+          <text x={tooltipX + TW / 2} y={tooltipY + 26} textAnchor="middle"
+            fontSize={10} fontWeight={600} fill="#fff">
+            {formatY(hovered.y)}
+          </text>
+        </g>
+      )}
+    </svg>
+  )
+}
+
+function Experiment3Charts({
+  allRows,
+  sellerValue,
+}: {
+  allRows: Experiment3Round[]
+  sellerValue: number
+}) {
+  type FullscreenState = (ChartProps & { title: string }) | null
+  const [fullscreen, setFullscreen] = useState<FullscreenState>(null)
+
+  // Close on Escape
+  useEffect(() => {
+    if (!fullscreen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFullscreen(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [fullscreen])
+
+  const byRound = new Map<number, Experiment3Round[]>()
+  for (const row of allRows) {
+    const r = row.round_in_treatment
+    if (!byRound.has(r)) byRound.set(r, [])
+    byRound.get(r)!.push(row)
+  }
+  const rounds = Array.from(byRound.keys()).sort((a, b) => a - b)
+
+  const reserveData = rounds.map((r) => {
+    const g = byRound.get(r)!
+    return { x: r, y: g.reduce((s, row) => s + Number(row.reserve_price), 0) / g.length }
+  })
+  const profitData = rounds.map((r) => {
+    const g = byRound.get(r)!
+    return { x: r, y: g.reduce((s, row) => s + Number(row.profit), 0) / g.length }
+  })
+  const saleRateData = rounds.map((r) => {
+    const g = byRound.get(r)!
+    return { x: r, y: (g.filter((row) => row.sold).length / g.length) * 100 }
+  })
+
+  const optimalReserve = (100 + sellerValue) / 2
+
+  const charts: (ChartProps & { title: string })[] = [
+    {
+      title: 'Avg Reserve Price',
+      data: reserveData,
+      yLabel: 'Reserve ($)',
+      color: 'var(--navy)',
+      yMin: 0,
+      yMax: 100,
+      referenceLine: optimalReserve,
+      referenceLabel: `r*=${optimalReserve}`,
+      formatY: (v) => `$${v.toFixed(0)}`,
+    },
+    {
+      title: 'Avg Profit per Round',
+      data: profitData,
+      yLabel: 'Profit ($)',
+      color: 'var(--navy)',
+      formatY: (v) => `$${v.toFixed(1)}`,
+    },
+    {
+      title: 'Sale Rate per Round',
+      data: saleRateData,
+      yLabel: 'Sale Rate (%)',
+      color: 'var(--navy)',
+      yMin: 0,
+      yMax: 100,
+      formatY: (v) => `${v.toFixed(0)}%`,
+    },
+  ]
+
+  if (allRows.length === 0) return null
+
+  return (
+    <>
+      <div className="mb-6">
+        <p className="text-xs tracking-widest uppercase mb-3" style={{ color: 'var(--text-muted)' }}>
+          Charts (per-round class averages)
+        </p>
+        <div className="grid grid-cols-3 gap-4">
+          {charts.map((chart) => (
+            <div
+              key={chart.title}
+              className="rounded-xl p-3"
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium" style={{ color: 'var(--text)' }}>
+                  {chart.title}
+                </p>
+                <button
+                  onClick={() => setFullscreen(chart)}
+                  title="Fullscreen"
+                  className="rounded transition-colors"
+                  style={{
+                    color: 'var(--text-muted)',
+                    padding: '2px 4px',
+                    fontSize: '11px',
+                    lineHeight: 1,
+                    background: 'transparent',
+                    border: '1px solid transparent',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--border)'
+                    e.currentTarget.style.color = 'var(--navy)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'transparent'
+                    e.currentTarget.style.color = 'var(--text-muted)'
+                  }}
+                >
+                  ⛶
+                </button>
+              </div>
+              <Exp3LineChart {...chart} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Fullscreen overlay */}
+      {fullscreen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.55)' }}
+          onClick={() => setFullscreen(null)}
+        >
+          <div
+            className="rounded-2xl p-6"
+            style={{
+              background: '#fff',
+              width: '90vw',
+              maxWidth: '1100px',
+              border: '1px solid var(--border)',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.25)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm font-semibold" style={{ color: 'var(--navy)' }}>
+                {fullscreen.title}
+              </p>
+              <button
+                onClick={() => setFullscreen(null)}
+                className="text-xs px-3 py-1 rounded transition-colors"
+                style={{
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-muted)',
+                }}
+              >
+                ✕ Close
+              </button>
+            </div>
+            <Exp3LineChart {...fullscreen} />
+            <p className="text-xs mt-3 text-center" style={{ color: 'var(--text-muted)' }}>
+              Press Esc or click outside to close
+            </p>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 // ── Experiment 3 instructor view ─────────────────────────────────────────────
 
 function Experiment3View({
@@ -495,6 +840,23 @@ function Experiment3View({
       ? allRows.reduce((sum, row) => sum + Number(row.profit), 0) / allRows.length
       : 0
 
+  const profitByStudent = new Map<string, number>()
+  for (const row of allRows) {
+    profitByStudent.set(
+      row.student_id,
+      (profitByStudent.get(row.student_id) ?? 0) + Number(row.profit)
+    )
+  }
+  const studentProfits = Array.from(profitByStudent.entries())
+  const topEarner =
+    studentProfits.length > 0
+      ? studentProfits.reduce((a, b) => (b[1] > a[1] ? b : a))
+      : null
+  const bottomEarner =
+    studentProfits.length > 0
+      ? studentProfits.reduce((a, b) => (b[1] < a[1] ? b : a))
+      : null
+
   return (
     <div>
       <div className="mb-6">
@@ -520,14 +882,30 @@ function Experiment3View({
       </div>
 
       <div
-        className="grid grid-cols-4 gap-4 rounded-xl p-4 mb-6"
+        className="grid grid-cols-6 gap-4 rounded-xl p-4 mb-6"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
       >
         <Stat label="Total Rows" value={allRows.length} />
         <Stat label="Unique Students" value={new Set(allRows.map((row) => row.student_id)).size} />
         <Stat label="Sale Rate" value={`${(saleRate * 100).toFixed(1)}%`} />
         <Stat label="Avg Profit" value={`$${averageProfit.toFixed(2)}`} />
+        {topEarner && (
+          <div>
+            <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Most Profit</p>
+            <p className="serif text-2xl" style={{ color: 'var(--navy)' }}>${topEarner[1].toFixed(2)}</p>
+            <p className="text-xs mt-0.5 font-mono truncate" style={{ color: 'var(--text-muted)' }}>{topEarner[0]}</p>
+          </div>
+        )}
+        {bottomEarner && (
+          <div>
+            <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Least Profit</p>
+            <p className="serif text-2xl" style={{ color: bottomEarner[1] < 0 ? '#b91c1c' : 'var(--navy)' }}>${bottomEarner[1].toFixed(2)}</p>
+            <p className="text-xs mt-0.5 font-mono truncate" style={{ color: 'var(--text-muted)' }}>{bottomEarner[0]}</p>
+          </div>
+        )}
       </div>
+
+      <Experiment3Charts allRows={allRows} sellerValue={currentTreatment.sellerValue} />
 
       <div
         className="rounded-lg px-4 py-3 mb-6 text-xs"
@@ -538,7 +916,7 @@ function Experiment3View({
         }}
       >
         <span style={{ color: 'var(--navy)', fontWeight: 500 }}>Treatment Setup: </span>
-        {currentTreatment.bidderCount} bidders, seller value {currentTreatment.sellerValue}, 20 rounds.
+        {currentTreatment.bidderCount} bidders, seller value {currentTreatment.sellerValue}, 20 rounds. Optimal reserve: ${(100 + currentTreatment.sellerValue) / 2}.
       </div>
 
       <div className="flex flex-wrap gap-2 items-center justify-between mb-4">
