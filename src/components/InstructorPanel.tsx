@@ -25,6 +25,15 @@ function estimateAlpha(row: RiskAversionResponse): number | null {
   return sumX2 > 0 ? sumXY / sumX2 : null
 }
 
+// ── Experiment 3 treatment pairing ──────────────────────────────────────────
+
+const PAIRED_TREATMENT: Record<string, string> = {
+  'exp3-1': 'exp3-2',
+  'exp3-2': 'exp3-1',
+  'exp3-3': 'exp3-4',
+  'exp3-4': 'exp3-3',
+}
+
 interface Props {
   userEmail: string
 }
@@ -44,6 +53,18 @@ export default function InstructorPanel({ userEmail }: Props) {
   const [experiment3Rows, setExperiment3Rows] = useState<Experiment3Round[]>([])
   const [raRows, setRaRows] = useState<RiskAversionResponse[]>([])
   const [loading, setLoading] = useState(false)
+
+  // Cache rows per treatment key so we can load paired treatments without refetching
+  const experiment3CacheRef = useRef<Record<string, Experiment3Round[]>>({})
+
+  const fetchTreatmentRows = useCallback(async (key: string): Promise<Experiment3Round[]> => {
+    if (experiment3CacheRef.current[key]) return experiment3CacheRef.current[key]
+    const res = await fetch(`/api/experiment3/rows?treatment_key=${encodeURIComponent(key)}`)
+    if (!res.ok) return []
+    const rows: Experiment3Round[] = await res.json()
+    experiment3CacheRef.current = { ...experiment3CacheRef.current, [key]: rows }
+    return rows
+  }, [])
 
   const fetchBids = useCallback(async () => {
     setLoading(true)
@@ -68,14 +89,12 @@ export default function InstructorPanel({ userEmail }: Props) {
   const fetchExperiment3Rows = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(
-        `/api/experiment3/rows?treatment_key=${encodeURIComponent(selectedExperiment3Treatment)}`
-      )
-      if (res.ok) setExperiment3Rows(await res.json())
+      const rows = await fetchTreatmentRows(selectedExperiment3Treatment)
+      setExperiment3Rows(rows)
     } finally {
       setLoading(false)
     }
-  }, [selectedExperiment3Treatment])
+  }, [selectedExperiment3Treatment, fetchTreatmentRows])
 
   useEffect(() => {
     if (activeTab === 'auctions') fetchBids()
@@ -270,6 +289,7 @@ export default function InstructorPanel({ userEmail }: Props) {
             onSelectRound={setSelectedExperiment3Round}
             onRefresh={fetchExperiment3Rows}
             onExport={handleExperiment3Export}
+            onFetchTreatment={fetchTreatmentRows}
           />
         )}
 
@@ -637,23 +657,252 @@ function Exp3LineChart({
   )
 }
 
+type DualChartProps = {
+  dataA: { x: number; y: number }[]
+  dataB: { x: number; y: number }[]
+  labelA: string
+  labelB: string
+  yLabel: string
+  referenceLine?: number
+  referenceLabel?: string
+  formatY?: (v: number) => string
+}
+
+function Exp3DualLineChart({
+  dataA,
+  dataB,
+  labelA,
+  labelB,
+  yLabel,
+  referenceLine,
+  referenceLabel,
+  formatY = (v) => v.toFixed(1),
+}: DualChartProps) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+  const [hoveredSet, setHoveredSet] = useState<'A' | 'B' | null>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
+
+  const W = 640
+  const H = 240
+  const PAD = { top: 24, right: 72, bottom: 36, left: 52 }
+  const innerW = W - PAD.left - PAD.right
+  const innerH = H - PAD.top - PAD.bottom
+
+  const allData = [...dataA, ...dataB]
+  if (allData.length === 0) {
+    return (
+      <div className="flex items-center justify-center rounded-lg"
+        style={{ height: `${H}px`, background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>No data yet</span>
+      </div>
+    )
+  }
+
+  const xs = allData.map((d) => d.x)
+  const ys = allData.map((d) => d.y)
+  const xMin = Math.min(...xs)
+  const xMax = Math.max(...xs)
+  const rawYMin = Math.min(...ys, ...(referenceLine != null ? [referenceLine] : []))
+  const rawYMax = Math.max(...ys, ...(referenceLine != null ? [referenceLine] : []))
+  const yPadding = (rawYMax - rawYMin) * 0.14 || 5
+  const computedYMin = rawYMin - yPadding
+  const computedYMax = rawYMax + yPadding
+
+  const sx = (x: number) => PAD.left + ((x - xMin) / (xMax - xMin || 1)) * innerW
+  const sy = (y: number) => PAD.top + (1 - (y - computedYMin) / (computedYMax - computedYMin || 1)) * innerH
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const svg = svgRef.current
+    if (!svg) return
+    const rect = svg.getBoundingClientRect()
+    const mouseX = ((e.clientX - rect.left) / rect.width) * W
+    const mouseY = ((e.clientY - rect.top) / rect.height) * H
+
+    let bestA = 0, bestDistA = Infinity
+    dataA.forEach((d, i) => {
+      const dist = Math.hypot(sx(d.x) - mouseX, sy(d.y) - mouseY)
+      if (dist < bestDistA) { bestDistA = dist; bestA = i }
+    })
+    let bestB = 0, bestDistB = Infinity
+    dataB.forEach((d, i) => {
+      const dist = Math.hypot(sx(d.x) - mouseX, sy(d.y) - mouseY)
+      if (dist < bestDistB) { bestDistB = dist; bestB = i }
+    })
+    if (bestDistA <= bestDistB) { setHoveredSet('A'); setHoveredIdx(bestA) }
+    else { setHoveredSet('B'); setHoveredIdx(bestB) }
+  }
+
+  const polyA = dataA.map((d) => `${sx(d.x)},${sy(d.y)}`).join(' ')
+  const polyB = dataB.map((d) => `${sx(d.x)},${sy(d.y)}`).join(' ')
+  const yTicks = 4
+  const yTickVals = Array.from({ length: yTicks + 1 }, (_, i) =>
+    computedYMin + (i / yTicks) * (computedYMax - computedYMin)
+  )
+  const xLabelSet = new Set([1, 5, 10, 15, 20])
+
+  const hovered = hoveredIdx != null && hoveredSet
+    ? (hoveredSet === 'A' ? dataA[hoveredIdx] : dataB[hoveredIdx])
+    : null
+  // Short label for tooltip: just the "Exp 3.x" prefix before the first " · "
+  const shortLabelA = labelA.split(' · ')[0]
+  const shortLabelB = labelB.split(' · ')[0]
+  const hoveredShortLabel = hoveredSet === 'A' ? shortLabelA : shortLabelB
+
+  const TW = 80
+  const TH = 36
+  const tooltipX = hovered
+    ? Math.min(Math.max(sx(hovered.x) - TW / 2, PAD.left), PAD.left + innerW - TW)
+    : 0
+  const tooltipY = hovered
+    ? sy(hovered.y) - TH - 10 < PAD.top
+      ? sy(hovered.y) + 10
+      : sy(hovered.y) - TH - 10
+    : 0
+
+  return (
+    <div>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full"
+        style={{ display: 'block', cursor: 'crosshair' }}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => { setHoveredIdx(null); setHoveredSet(null) }}
+      >
+        {/* Grid lines */}
+        {yTickVals.map((v, i) => (
+          <line key={i} x1={PAD.left} y1={sy(v)} x2={PAD.left + innerW} y2={sy(v)}
+            stroke="var(--border)" strokeWidth={1} />
+        ))}
+        {/* Y axis tick labels */}
+        {yTickVals.map((v, i) => (
+          <text key={i} x={PAD.left - 5} y={sy(v) + 4} textAnchor="end" fontSize={9} fill="var(--text-muted)">
+            {formatY(v)}
+          </text>
+        ))}
+        {/* X axis tick labels */}
+        {Array.from(new Set([...dataA.map(d => d.x), ...dataB.map(d => d.x)])).map((x) =>
+          xLabelSet.has(x) ? (
+            <text key={x} x={sx(x)} y={H - PAD.bottom + 14} textAnchor="middle" fontSize={9} fill="var(--text-muted)">
+              {x}
+            </text>
+          ) : null
+        )}
+        {/* Reference line */}
+        {referenceLine != null && (
+          <>
+            <line x1={PAD.left} y1={sy(referenceLine)} x2={PAD.left + innerW} y2={sy(referenceLine)}
+              stroke="var(--gold)" strokeWidth={1.5} strokeDasharray="4 3" />
+            {referenceLabel && (
+              <text x={PAD.left + innerW + 4} y={sy(referenceLine) + 4}
+                fontSize={8} fill="var(--gold)" fontWeight={600}>
+                {referenceLabel}
+              </text>
+            )}
+          </>
+        )}
+        {/* Lines */}
+        <polyline points={polyA} fill="none" stroke="var(--navy)" strokeWidth={2}
+          strokeLinejoin="round" strokeLinecap="round" />
+        <polyline points={polyB} fill="none" stroke="var(--gold)" strokeWidth={2}
+          strokeLinejoin="round" strokeLinecap="round" />
+        {/* Dots A */}
+        {dataA.map((d, i) => (
+          <circle key={`a${i}`} cx={sx(d.x)} cy={sy(d.y)}
+            r={hoveredSet === 'A' && hoveredIdx === i ? 5 : 3}
+            fill={hoveredSet === 'A' && hoveredIdx === i ? '#fff' : 'var(--navy)'}
+            stroke="var(--navy)" strokeWidth={hoveredSet === 'A' && hoveredIdx === i ? 2 : 0} />
+        ))}
+        {/* Dots B */}
+        {dataB.map((d, i) => (
+          <circle key={`b${i}`} cx={sx(d.x)} cy={sy(d.y)}
+            r={hoveredSet === 'B' && hoveredIdx === i ? 5 : 3}
+            fill={hoveredSet === 'B' && hoveredIdx === i ? '#fff' : 'var(--gold)'}
+            stroke="var(--gold)" strokeWidth={hoveredSet === 'B' && hoveredIdx === i ? 2 : 0} />
+        ))}
+        {/* Y axis label */}
+        <text x={10} y={H / 2} textAnchor="middle" fontSize={9} fill="var(--text-muted)"
+          transform={`rotate(-90, 10, ${H / 2})`}>
+          {yLabel}
+        </text>
+        {/* X axis label */}
+        <text x={PAD.left + innerW / 2} y={H - 2} textAnchor="middle" fontSize={9} fill="var(--text-muted)">
+          Round
+        </text>
+        {/* Tooltip */}
+        {hovered && (
+          <g>
+            <rect x={tooltipX} y={tooltipY} width={TW} height={TH} rx={4}
+              fill="var(--navy)" opacity={0.93} />
+            <text x={tooltipX + TW / 2} y={tooltipY + 12} textAnchor="middle"
+              fontSize={8} fill="rgba(255,255,255,0.65)">
+              {hoveredShortLabel} · R{hovered.x}
+            </text>
+            <text x={tooltipX + TW / 2} y={tooltipY + 27} textAnchor="middle"
+              fontSize={11} fontWeight={600} fill="#fff">
+              {formatY(hovered.y)}
+            </text>
+          </g>
+        )}
+      </svg>
+      {/* HTML legend — avoids SVG text-width estimation problems */}
+      <div className="flex items-center gap-5 mt-2 justify-center">
+        <div className="flex items-center gap-1.5">
+          <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: 'var(--navy)', flexShrink: 0 }} />
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{labelA}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: 'var(--gold)', flexShrink: 0 }} />
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{labelB}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Experiment3Charts({
   allRows,
   sellerValue,
+  currentLabel,
+  pairedLabel,
+  onGetPairedReserveData,
 }: {
   allRows: Experiment3Round[]
   sellerValue: number
+  currentLabel: string
+  pairedLabel: string
+  onGetPairedReserveData: () => Promise<{ x: number; y: number }[]>
 }) {
   type FullscreenState = (ChartProps & { title: string }) | null
   const [fullscreen, setFullscreen] = useState<FullscreenState>(null)
+  const [showCombined, setShowCombined] = useState(false)
+  const [pairedReserveData, setPairedReserveData] = useState<{ x: number; y: number }[] | null>(null)
+  const [loadingPaired, setLoadingPaired] = useState(false)
+
+  // Reset paired data when the paired treatment changes (i.e. user switches treatment)
+  useEffect(() => {
+    setPairedReserveData(null)
+    setShowCombined(false)
+  }, [onGetPairedReserveData])
+
+  const handleShowCombined = async () => {
+    if (pairedReserveData === null) {
+      setLoadingPaired(true)
+      const data = await onGetPairedReserveData()
+      setPairedReserveData(data)
+      setLoadingPaired(false)
+    }
+    setShowCombined(true)
+  }
 
   // Close on Escape
   useEffect(() => {
-    if (!fullscreen) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFullscreen(null) }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setFullscreen(null); setShowCombined(false) }
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [fullscreen])
+  }, [])
 
   const byRound = new Map<number, Experiment3Round[]>()
   for (const row of allRows) {
@@ -684,8 +933,6 @@ function Experiment3Charts({
       data: reserveData,
       yLabel: 'Reserve ($)',
       color: 'var(--navy)',
-      yMin: 10,
-      yMax: 80,
       referenceLine: optimalReserve,
       referenceLabel: `r*=${optimalReserve}`,
       formatY: (v) => `$${v.toFixed(0)}`,
@@ -702,7 +949,7 @@ function Experiment3Charts({
       data: saleRateData,
       yLabel: 'Sale Rate (%)',
       color: 'var(--navy)',
-      yMin: 0,
+      yMin: 40,
       yMax: 100,
       formatY: (v) => `${v.toFixed(0)}%`,
     },
@@ -727,35 +974,114 @@ function Experiment3Charts({
                 <p className="text-xs font-medium" style={{ color: 'var(--text)' }}>
                   {chart.title}
                 </p>
-                <button
-                  onClick={() => setFullscreen(chart)}
-                  title="Fullscreen"
-                  className="rounded transition-colors"
-                  style={{
-                    color: 'var(--text-muted)',
-                    padding: '2px 4px',
-                    fontSize: '11px',
-                    lineHeight: 1,
-                    background: 'transparent',
-                    border: '1px solid transparent',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--border)'
-                    e.currentTarget.style.color = 'var(--navy)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'transparent'
-                    e.currentTarget.style.color = 'var(--text-muted)'
-                  }}
-                >
-                  ⛶
-                </button>
+                <div className="flex items-center gap-1">
+                  {chart.title === 'Avg Reserve Price' && (
+                    <button
+                      onClick={handleShowCombined}
+                      disabled={loadingPaired}
+                      title="Show both treatments together"
+                      className="rounded transition-colors text-xs"
+                      style={{
+                        color: 'var(--text-muted)',
+                        padding: '2px 6px',
+                        fontSize: '10px',
+                        lineHeight: 1.4,
+                        background: 'transparent',
+                        border: '1px solid var(--border)',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--navy)'
+                        e.currentTarget.style.color = 'var(--navy)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--border)'
+                        e.currentTarget.style.color = 'var(--text-muted)'
+                      }}
+                    >
+                      {loadingPaired ? '…' : 'Show Together'}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setFullscreen(chart)}
+                    title="Fullscreen"
+                    className="rounded transition-colors"
+                    style={{
+                      color: 'var(--text-muted)',
+                      padding: '2px 4px',
+                      fontSize: '11px',
+                      lineHeight: 1,
+                      background: 'transparent',
+                      border: '1px solid transparent',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border)'
+                      e.currentTarget.style.color = 'var(--navy)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'transparent'
+                      e.currentTarget.style.color = 'var(--text-muted)'
+                    }}
+                  >
+                    ⛶
+                  </button>
+                </div>
               </div>
               <Exp3LineChart {...chart} />
             </div>
           ))}
         </div>
       </div>
+
+      {/* Combined overlay */}
+      {showCombined && pairedReserveData !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.55)' }}
+          onClick={() => setShowCombined(false)}
+        >
+          <div
+            className="rounded-2xl p-6"
+            style={{
+              background: '#fff',
+              width: '90vw',
+              maxWidth: '900px',
+              border: '1px solid var(--border)',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.25)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm font-semibold" style={{ color: 'var(--navy)' }}>
+                Avg Reserve Price — Combined
+              </p>
+              <button
+                onClick={() => setShowCombined(false)}
+                className="text-xs px-3 py-1 rounded transition-colors"
+                style={{
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-muted)',
+                }}
+              >
+                ✕ Close
+              </button>
+            </div>
+            <Exp3DualLineChart
+              dataA={reserveData}
+              dataB={pairedReserveData}
+              labelA={currentLabel}
+              labelB={pairedLabel}
+              yLabel="Reserve ($)"
+              referenceLine={optimalReserve}
+              referenceLabel={`r*=${optimalReserve}`}
+              formatY={(v) => `$${v.toFixed(0)}`}
+            />
+            <p className="text-xs mt-3 text-center" style={{ color: 'var(--text-muted)' }}>
+              Press Esc or click outside to close
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Fullscreen overlay */}
       {fullscreen && (
@@ -817,6 +1143,7 @@ function Experiment3View({
   onSelectRound,
   onRefresh,
   onExport,
+  onFetchTreatment,
 }: {
   rows: Experiment3Round[]
   allRows: Experiment3Round[]
@@ -830,7 +1157,30 @@ function Experiment3View({
   onSelectRound: (value: number | 'all') => void
   onRefresh: () => void
   onExport: () => void
+  onFetchTreatment: (key: string) => Promise<Experiment3Round[]>
 }) {
+  const pairedKey = PAIRED_TREATMENT[selectedTreatmentKey]
+  const pairedTreatment = EXPERIMENT3_TREATMENTS.find((t) => t.key === pairedKey)!
+
+  const getReserveData = (treatmentRows: Experiment3Round[]) => {
+    const byRound = new Map<number, Experiment3Round[]>()
+    for (const row of treatmentRows) {
+      const r = row.round_in_treatment
+      if (!byRound.has(r)) byRound.set(r, [])
+      byRound.get(r)!.push(row)
+    }
+    const rds = Array.from(byRound.keys()).sort((a, b) => a - b)
+    return rds.map((r) => {
+      const g = byRound.get(r)!
+      return { x: r, y: g.reduce((s, row) => s + Number(row.reserve_price), 0) / g.length }
+    })
+  }
+
+  const onGetPairedReserveData = useCallback(async () => {
+    const rows = await onFetchTreatment(pairedKey)
+    return getReserveData(rows)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pairedKey, onFetchTreatment])
   const saleRate =
     allRows.length > 0
       ? allRows.filter((row) => row.sold).length / allRows.length
@@ -905,7 +1255,13 @@ function Experiment3View({
         )}
       </div>
 
-      <Experiment3Charts allRows={allRows} sellerValue={currentTreatment.sellerValue} />
+      <Experiment3Charts
+        allRows={allRows}
+        sellerValue={currentTreatment.sellerValue}
+        currentLabel={currentTreatment.shortTitle}
+        pairedLabel={pairedTreatment.shortTitle}
+        onGetPairedReserveData={onGetPairedReserveData}
+      />
 
       <div
         className="rounded-lg px-4 py-3 mb-6 text-xs"
