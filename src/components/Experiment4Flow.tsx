@@ -437,30 +437,25 @@ function StepIndicator({ current }: { current: Panel }) {
   const currentIdx = STEPS.findIndex((s) => s.key === current)
   const visibleSteps = STEPS.slice(0, currentIdx + 1)
   return (
-    <div className="flex flex-wrap gap-1.5 items-center">
+    <div className="flex items-center gap-1">
       {visibleSteps.map((step, i) => {
         const active = step.key === current
         const done = i < currentIdx
         return (
-          <div key={step.key} className="flex items-center gap-1.5">
+          <div key={step.key} className="flex items-center gap-1">
             {i > 0 && (
-              <div className="w-4 h-px" style={{ background: done ? 'var(--navy)' : 'var(--border)' }} />
+              <div className="w-5 h-px" style={{ background: 'var(--navy)' }} />
             )}
-            <div className="flex items-center gap-1">
-              <span
-                className="w-5 h-5 rounded-full flex items-center justify-center text-xs"
-                style={{
-                  background: active || done ? 'var(--navy)' : 'var(--surface2)',
-                  color: active || done ? '#fff' : 'var(--text-muted)',
-                  fontWeight: 600,
-                }}
-              >
-                {done ? '✓' : i + 1}
-              </span>
-              <span className="text-xs" style={{ color: active ? 'var(--text)' : 'var(--text-muted)' }}>
-                {step.label}
-              </span>
-            </div>
+            <span
+              className="w-6 h-6 rounded-full flex items-center justify-center text-xs"
+              style={{
+                background: 'var(--navy)',
+                color: '#fff',
+                fontWeight: 600,
+              }}
+            >
+              {done ? '✓' : i + 1}
+            </span>
           </div>
         )
       })}
