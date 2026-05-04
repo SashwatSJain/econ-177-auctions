@@ -12,7 +12,7 @@ interface CardDef {
   href?: string
 }
 
-type HomeTabKey = 'exp1' | 'exp2' | 'exp3'
+type HomeTabKey = 'exp1' | 'exp2' | 'exp3' | 'exp4'
 
 const EXP1_CARDS: CardDef[] = [
   {
@@ -124,6 +124,18 @@ const EXP3_CARDS: CardDef[] = [
   },
 ]
 
+const EXP4_CARDS: CardDef[] = [
+  {
+    key: 'experiment4',
+    line1: 'Experiment 4',
+    line2: 'Jar of Kernels',
+    line3: 'Common Value Auction',
+    description:
+      'Estimate the number of kernels in a jar and submit first-price bids against 1, 9, or 99 other bidders.',
+    href: '/experiment4',
+  },
+]
+
 const HOME_TABS: {
   key: HomeTabKey
   label: string
@@ -151,6 +163,13 @@ const HOME_TABS: {
     title: 'Seller Reserve Auction',
     description: 'Four seller-side reserve-setting treatment blocks, shown separately below.',
     cards: EXP3_CARDS,
+  },
+  {
+    key: 'exp4',
+    label: 'Exp 4',
+    title: 'Jar of Kernels',
+    description: 'Common-value auction: estimate the jar, then bid in first-price auctions with increasing competition.',
+    cards: EXP4_CARDS,
   },
 ]
 

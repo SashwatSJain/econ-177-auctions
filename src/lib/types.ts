@@ -27,6 +27,16 @@ export interface Experiment3Round {
   created_at: string
 }
 
+export interface Experiment4Response {
+  id: string
+  student_id: string
+  estimate: number
+  bid_2: number
+  bid_10: number
+  bid_100: number
+  created_at: string
+}
+
 export interface RiskAversionResponse {
   id: string
   student_id: string
