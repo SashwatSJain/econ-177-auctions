@@ -203,9 +203,6 @@ export default function Experiment4Flow() {
                   You see a jar containing an unknown number of kernels.
                   Each kernel is worth $1, so the value of the jar equals the number of kernels inside it.
                 </p>
-                <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
-                  Please answer each question independently.
-                </p>
               </div>
 
               <p className="text-sm mb-4" style={{ color: 'var(--text)', lineHeight: 1.7 }}>
