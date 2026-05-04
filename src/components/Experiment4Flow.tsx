@@ -236,7 +236,7 @@ export default function Experiment4Flow() {
             <div>
               <StepIndicator current="q2" />
               <h2 className="serif text-3xl mb-2 mt-6" style={{ color: 'var(--text)' }}>
-                Question 2: 2-Bidder Auction
+                Question 2: 1 Other Bidder
               </h2>
               <p className="text-xs mb-6" style={{ color: 'var(--text-muted)' }}>
                 Perm: {studentId.trim()}
@@ -277,7 +277,7 @@ export default function Experiment4Flow() {
             <div>
               <StepIndicator current="q3" />
               <h2 className="serif text-3xl mb-2 mt-6" style={{ color: 'var(--text)' }}>
-                Question 3: 10-Bidder Auction
+                Question 3: 9 Other Bidders
               </h2>
               <p className="text-xs mb-6" style={{ color: 'var(--text-muted)' }}>
                 Perm: {studentId.trim()}
@@ -317,7 +317,7 @@ export default function Experiment4Flow() {
             <div>
               <StepIndicator current="q4" />
               <h2 className="serif text-3xl mb-2 mt-6" style={{ color: 'var(--text)' }}>
-                Question 4: 100-Bidder Auction
+                Question 4: 99 Other Bidders
               </h2>
               <p className="text-xs mb-6" style={{ color: 'var(--text-muted)' }}>
                 Perm: {studentId.trim()}
@@ -405,8 +405,8 @@ function ContextBar({
 }) {
   const items: { label: string; value: string }[] = []
   if (estimate) items.push({ label: 'Estimate', value: `${parseFloat(estimate).toLocaleString()} kernels` })
-  if (bid2) items.push({ label: '2-bidder bid', value: `$${parseFloat(bid2).toLocaleString()}` })
-  if (bid10) items.push({ label: '10-bidder bid', value: `$${parseFloat(bid10).toLocaleString()}` })
+  if (bid2) items.push({ label: 'Bid (1 other)', value: `$${parseFloat(bid2).toLocaleString()}` })
+  if (bid10) items.push({ label: 'Bid (9 others)', value: `$${parseFloat(bid10).toLocaleString()}` })
   if (items.length === 0) return null
   return (
     <div
@@ -428,9 +428,9 @@ function ContextBar({
 const STEPS: { key: Panel; label: string }[] = [
   { key: 'identify', label: 'Identify' },
   { key: 'q1', label: 'Estimate' },
-  { key: 'q2', label: '2 Bidders' },
-  { key: 'q3', label: '10 Bidders' },
-  { key: 'q4', label: '100 Bidders' },
+  { key: 'q2', label: '1 Other' },
+  { key: 'q3', label: '9 Others' },
+  { key: 'q4', label: '99 Others' },
 ]
 
 function StepIndicator({ current }: { current: Panel }) {
