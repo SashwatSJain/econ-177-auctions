@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
 
+// GET /api/experiment4 — returns all rows (instructor use)
+export async function GET() {
+  const admin = createAdminSupabaseClient()
+  const { data, error } = await admin
+    .from('experiment4_responses')
+    .select('*')
+    .order('created_at', { ascending: true })
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data ?? [])
+}
+
 // POST /api/experiment4
 export async function POST(req: NextRequest) {
   const body = await req.json()

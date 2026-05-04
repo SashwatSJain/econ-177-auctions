@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { AUCTION_CONFIGS, TOTAL_ROUNDS } from '@/lib/auction-config'
 import { EXPERIMENT3_TREATMENTS } from '@/lib/experiment3-config'
-import type { Bid, Experiment3Round, RiskAversionResponse } from '@/lib/types'
+import type { Bid, Experiment3Round, Experiment4Response, RiskAversionResponse } from '@/lib/types'
 
 // ── Risk aversion helpers ────────────────────────────────────────────────────
 
@@ -38,7 +38,7 @@ interface Props {
   userEmail: string
 }
 
-type TabKey = 'auctions' | 'experiment3' | 'assignment2'
+type TabKey = 'auctions' | 'experiment3' | 'assignment2' | 'experiment4'
 
 export default function InstructorPanel({ userEmail }: Props) {
   const router = useRouter()
@@ -52,6 +52,7 @@ export default function InstructorPanel({ userEmail }: Props) {
   const [selectedExperiment3Round, setSelectedExperiment3Round] = useState<number | 'all'>('all')
   const [experiment3Rows, setExperiment3Rows] = useState<Experiment3Round[]>([])
   const [raRows, setRaRows] = useState<RiskAversionResponse[]>([])
+  const [experiment4Rows, setExperiment4Rows] = useState<Experiment4Response[]>([])
   const [loading, setLoading] = useState(false)
 
   // Cache rows per treatment key so we can load paired treatments without refetching
@@ -86,6 +87,16 @@ export default function InstructorPanel({ userEmail }: Props) {
     }
   }, [])
 
+  const fetchExperiment4Rows = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/experiment4')
+      if (res.ok) setExperiment4Rows(await res.json())
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   const fetchExperiment3Rows = useCallback(async () => {
     setLoading(true)
     try {
@@ -99,8 +110,9 @@ export default function InstructorPanel({ userEmail }: Props) {
   useEffect(() => {
     if (activeTab === 'auctions') fetchBids()
     else if (activeTab === 'experiment3') fetchExperiment3Rows()
+    else if (activeTab === 'experiment4') fetchExperiment4Rows()
     else fetchRaRows()
-  }, [activeTab, fetchBids, fetchExperiment3Rows, fetchRaRows])
+  }, [activeTab, fetchBids, fetchExperiment3Rows, fetchExperiment4Rows, fetchRaRows])
 
   const handleSignOut = async () => {
     const supabase = createClient()
@@ -247,7 +259,7 @@ export default function InstructorPanel({ userEmail }: Props) {
       <div className="max-w-6xl mx-auto px-6 py-8">
         {/* Tab switcher */}
         <div className="flex gap-2 mb-8 border-b" style={{ borderColor: 'var(--border)' }}>
-          {(['auctions', 'assignment2', 'experiment3'] as TabKey[]).map((tab) => (
+          {(['auctions', 'assignment2', 'experiment3', 'experiment4'] as TabKey[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -262,10 +274,17 @@ export default function InstructorPanel({ userEmail }: Props) {
                 ? 'Experiment 1: Auctions'
                 : tab === 'assignment2'
                 ? 'Experiment 2: Risk Aversion'
-                : 'Experiment 3: Seller Auction'}
+                : tab === 'experiment3'
+                ? 'Experiment 3: Seller Auction'
+                : 'Experiment 4: Jar of Kernels'}
             </button>
           ))}
         </div>
+
+        {/* ── Experiment 4 view ── */}
+        {activeTab === 'experiment4' && (
+          <Experiment4View rows={experiment4Rows} loading={loading} onRefresh={fetchExperiment4Rows} />
+        )}
 
         {/* ── Assignment 2 view ── */}
         {activeTab === 'assignment2' && (
@@ -1556,6 +1575,111 @@ function RiskAversionView({
                   </tr>
                 )
               })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Experiment 4 instructor view ─────────────────────────────────────────────
+
+function Experiment4View({
+  rows,
+  loading,
+  onRefresh,
+}: {
+  rows: Experiment4Response[]
+  loading: boolean
+  onRefresh: () => void
+}) {
+  const avg = (fn: (r: Experiment4Response) => number) =>
+    rows.length > 0 ? rows.reduce((s, r) => s + fn(r), 0) / rows.length : null
+
+  const avgEstimate = avg((r) => Number(r.estimate))
+  const avgBid2 = avg((r) => Number(r.bid_2))
+  const avgBid10 = avg((r) => Number(r.bid_10))
+  const avgBid100 = avg((r) => Number(r.bid_100))
+
+  const handleExport = async () => {
+    const XLSX = await import('xlsx')
+    const wb = XLSX.utils.book_new()
+    const sheet = rows.map((r, i) => ({
+      '#': i + 1,
+      'Student ID': r.student_id,
+      'Estimate (kernels)': Number(r.estimate),
+      'Bid — 1 Bidder ($)': Number(r.bid_2),
+      'Bid — 10 Bidders ($)': Number(r.bid_10),
+      'Bid — 100 Bidders ($)': Number(r.bid_100),
+      'Submitted': new Date(r.created_at).toLocaleString(),
+    }))
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet), 'Responses')
+    XLSX.writeFile(wb, 'experiment4-jar-of-kernels.xlsx')
+  }
+
+  const fmt = (v: number | null) => (v == null ? '—' : v.toFixed(1))
+
+  return (
+    <div>
+      <div
+        className="grid grid-cols-5 gap-4 rounded-xl p-4 mb-6"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+      >
+        <Stat label="Submissions" value={rows.length} />
+        <Stat label="Avg Estimate" value={fmt(avgEstimate)} />
+        <Stat label="Avg Bid · 1 Bidder" value={avgBid2 != null ? `$${fmt(avgBid2)}` : '—'} />
+        <Stat label="Avg Bid · 10 Bidders" value={avgBid10 != null ? `$${fmt(avgBid10)}` : '—'} />
+        <Stat label="Avg Bid · 100 Bidders" value={avgBid100 != null ? `$${fmt(avgBid100)}` : '—'} />
+      </div>
+
+      <div className="flex gap-2 justify-end mb-4">
+        <button onClick={onRefresh} className="btn-ghost text-xs px-3 py-1.5 rounded" disabled={loading}>
+          {loading ? 'Loading…' : '↻ Refresh'}
+        </button>
+        <button onClick={handleExport} className="btn-gold text-xs px-3 py-1.5 rounded" disabled={rows.length === 0}>
+          ⬇ Excel
+        </button>
+      </div>
+
+      {rows.length === 0 ? (
+        <div
+          className="rounded-xl p-12 text-center"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+        >
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+            {loading ? 'Loading…' : 'No submissions yet.'}
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-xl overflow-auto" style={{ border: '1px solid var(--border)' }}>
+          <table className="w-full text-sm" style={{ minWidth: '700px' }}>
+            <thead>
+              <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+                {['#', 'Student ID', 'Estimate', 'Bid · 1 Bidder', 'Bid · 10 Bidders', 'Bid · 100 Bidders', 'Submitted'].map((h) => (
+                  <th key={h} className="text-left px-4 py-3 text-xs tracking-wide font-medium" style={{ color: 'var(--text-muted)' }}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr
+                  key={row.id}
+                  style={{ background: i % 2 === 0 ? '#fff' : 'var(--surface)', borderBottom: '1px solid var(--border)' }}
+                >
+                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>{i + 1}</td>
+                  <td className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text)' }}>{row.student_id}</td>
+                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text)' }}>{Number(row.estimate).toLocaleString()}</td>
+                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--navy)', fontWeight: 500 }}>${Number(row.bid_2).toFixed(2)}</td>
+                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--navy)', fontWeight: 500 }}>${Number(row.bid_10).toFixed(2)}</td>
+                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--navy)', fontWeight: 500 }}>${Number(row.bid_100).toFixed(2)}</td>
+                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {new Date(row.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
