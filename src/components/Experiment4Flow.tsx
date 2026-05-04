@@ -22,7 +22,7 @@ export default function Experiment4Flow() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const questionsAnswered = Q_PANELS.indexOf(panel) // -1 on identify/complete
+  const questionsAnswered = Q_PANELS.indexOf(panel)
 
   // ── Identify ──────────────────────────────────────────────────────────────────
 
@@ -119,14 +119,15 @@ export default function Experiment4Flow() {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg)' }}>
 
-      {/* Header */}
       <header
-        className="border-b px-6 py-3 flex items-center justify-between"
+        className="border-b px-6 py-3 grid grid-cols-[1fr_auto_1fr] items-center gap-4"
         style={{ borderColor: 'var(--border)' }}
       >
-        <Link href="/" className="text-xs tracking-widest uppercase" style={{ color: 'var(--text-muted)' }}>
-          ← Back
-        </Link>
+        <div className="justify-self-start">
+          <Link href="/" className="text-xs tracking-widest uppercase" style={{ color: 'var(--text-muted)' }}>
+            ← Back
+          </Link>
+        </div>
         <div className="flex flex-col items-center">
           <span className="text-xs tracking-widest uppercase" style={{ color: 'var(--navy)' }}>
             UCSB · Econ 177
@@ -135,8 +136,7 @@ export default function Experiment4Flow() {
             Experiment 4: Jar of Kernels
           </span>
         </div>
-        {/* Question progress dots */}
-        <div className="flex gap-1 items-center">
+        <div className="flex gap-1 items-center justify-self-end">
           {Q_PANELS.map((p, i) => {
             const done = questionsAnswered > i
             const current = panel === p
@@ -159,7 +159,7 @@ export default function Experiment4Flow() {
                 Identify Yourself
               </h2>
               <p className="text-sm mb-8" style={{ color: 'var(--text-muted)' }}>
-                Enter your perm number to begin.
+                Enter your perm number to begin Experiment 4.
               </p>
               <input
                 type="text"
@@ -176,7 +176,7 @@ export default function Experiment4Flow() {
                 onClick={handleIdentify}
                 disabled={loading}
               >
-                {loading ? 'Checking…' : 'Begin →'}
+                {loading ? 'Checking…' : 'Begin Experiment 4 →'}
               </button>
             </div>
           )}
@@ -186,10 +186,10 @@ export default function Experiment4Flow() {
             <div>
               <StepIndicator current="q1" />
               <h2 className="serif text-3xl mb-2 mt-6" style={{ color: 'var(--text)' }}>
-                Question 1: Estimate
+                Your Estimate
               </h2>
               <p className="text-xs mb-6" style={{ color: 'var(--text-muted)' }}>
-                Perm: {studentId.trim()}
+                Perm number: {studentId.trim()}
               </p>
 
               <div
@@ -231,15 +231,15 @@ export default function Experiment4Flow() {
             </div>
           )}
 
-          {/* ── PANEL: q2 — 2-bidder auction ── */}
+          {/* ── PANEL: q2 — 1 other bidder ── */}
           {panel === 'q2' && (
             <div>
               <StepIndicator current="q2" />
               <h2 className="serif text-3xl mb-2 mt-6" style={{ color: 'var(--text)' }}>
-                Question 2: 1 Bidder
+                Your Bid
               </h2>
               <p className="text-xs mb-6" style={{ color: 'var(--text-muted)' }}>
-                Perm: {studentId.trim()}
+                Perm number: {studentId.trim()}
               </p>
 
               <ContextBar estimate={estimate} />
@@ -272,15 +272,15 @@ export default function Experiment4Flow() {
             </div>
           )}
 
-          {/* ── PANEL: q3 — 10-bidder auction ── */}
+          {/* ── PANEL: q3 — 9 other bidders ── */}
           {panel === 'q3' && (
             <div>
               <StepIndicator current="q3" />
               <h2 className="serif text-3xl mb-2 mt-6" style={{ color: 'var(--text)' }}>
-                Question 3: 10 Bidders
+                Your Bid
               </h2>
               <p className="text-xs mb-6" style={{ color: 'var(--text-muted)' }}>
-                Perm: {studentId.trim()}
+                Perm number: {studentId.trim()}
               </p>
 
               <ContextBar estimate={estimate} bid2={bid2} />
@@ -312,15 +312,15 @@ export default function Experiment4Flow() {
             </div>
           )}
 
-          {/* ── PANEL: q4 — 100-bidder auction ── */}
+          {/* ── PANEL: q4 — 99 other bidders ── */}
           {panel === 'q4' && (
             <div>
               <StepIndicator current="q4" />
               <h2 className="serif text-3xl mb-2 mt-6" style={{ color: 'var(--text)' }}>
-                Question 4: 100 Bidders
+                Your Bid
               </h2>
               <p className="text-xs mb-6" style={{ color: 'var(--text-muted)' }}>
-                Perm: {studentId.trim()}
+                Perm number: {studentId.trim()}
               </p>
 
               <ContextBar estimate={estimate} bid2={bid2} bid10={bid10} />
@@ -373,10 +373,10 @@ export default function Experiment4Flow() {
               ) : (
                 <>
                   <h2 className="serif text-3xl mb-2" style={{ color: 'var(--text)' }}>
-                    Responses Recorded
+                    Experiment 4 Complete
                   </h2>
                   <p className="text-sm mb-8" style={{ color: 'var(--text-muted)' }}>
-                    Thank you, {studentId.trim()}. Your answers have been saved.
+                    Thank you, {studentId.trim()}. Your answers have been recorded.
                   </p>
                 </>
               )}
@@ -410,14 +410,17 @@ function ContextBar({
   if (items.length === 0) return null
   return (
     <div
-      className="flex flex-wrap gap-x-4 gap-y-1 text-xs rounded-lg px-4 py-3 mb-6"
+      className="flex flex-wrap gap-4 text-xs rounded-lg px-4 py-3 mb-6"
       style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
     >
       {items.map((item, i) => (
-        <span key={i} style={{ color: 'var(--text-muted)' }}>
-          {item.label}:{' '}
-          <span style={{ color: 'var(--navy)', fontWeight: 500 }}>{item.value}</span>
-        </span>
+        <>
+          {i > 0 && <span key={`sep-${i}`} style={{ color: 'var(--border)' }}>|</span>}
+          <span key={item.label} style={{ color: 'var(--text-muted)' }}>
+            {item.label}:{' '}
+            <span style={{ color: 'var(--navy)', fontWeight: 500 }}>{item.value}</span>
+          </span>
+        </>
       ))}
     </div>
   )
@@ -428,9 +431,9 @@ function ContextBar({
 const STEPS: { key: Panel; label: string }[] = [
   { key: 'identify', label: 'Identify' },
   { key: 'q1', label: 'Estimate' },
-  { key: 'q2', label: '1 Other' },
-  { key: 'q3', label: '9 Others' },
-  { key: 'q4', label: '99 Others' },
+  { key: 'q2', label: '1 Bidder' },
+  { key: 'q3', label: '10 Bidders' },
+  { key: 'q4', label: '100 Bidders' },
 ]
 
 function StepIndicator({ current }: { current: Panel }) {
@@ -449,8 +452,8 @@ function StepIndicator({ current }: { current: Panel }) {
             <span
               className="w-6 h-6 rounded-full flex items-center justify-center text-xs"
               style={{
-                background: 'var(--navy)',
-                color: '#fff',
+                background: active || done ? 'var(--navy)' : 'var(--surface2)',
+                color: active || done ? '#fff' : 'var(--text-muted)',
                 fontWeight: 600,
               }}
             >
