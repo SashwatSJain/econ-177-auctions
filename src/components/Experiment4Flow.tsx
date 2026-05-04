@@ -3,50 +3,28 @@
 import Link from 'next/link'
 import { useState } from 'react'
 
-const QUESTIONS = [
-  {
-    key: 'estimate' as const,
-    label: 'Estimate',
-    question: 'How many kernels do you think are in the jar?',
-    sublabel: 'kernels',
-  },
-  {
-    key: 'bid_2' as const,
-    label: '2-Bidder Bid',
-    question: 'You are bidding in a first-price sealed-bid auction against 1 other bidder. How much would you bid for the jar?',
-    sublabel: 'dollars',
-  },
-  {
-    key: 'bid_10' as const,
-    label: '10-Bidder Bid',
-    question: 'Same auction, but against 9 other bidders. How much would you bid?',
-    sublabel: 'dollars',
-  },
-  {
-    key: 'bid_100' as const,
-    label: '100-Bidder Bid',
-    question: 'Same auction, but against 99 other bidders. How much would you bid?',
-    sublabel: 'dollars',
-  },
-]
+type Panel = 'identify' | 'q1' | 'q2' | 'q3' | 'q4' | 'complete'
 
-type FieldKey = 'estimate' | 'bid_2' | 'bid_10' | 'bid_100'
-type Panel = 'identify' | 'survey' | 'confirm' | 'complete'
+const PANEL_ORDER: Panel[] = ['identify', 'q1', 'q2', 'q3', 'q4', 'complete']
+const Q_PANELS: Panel[] = ['q1', 'q2', 'q3', 'q4']
 
 export default function Experiment4Flow() {
   const [panel, setPanel] = useState<Panel>('identify')
   const [studentId, setStudentId] = useState('')
-  const [values, setValues] = useState<Record<FieldKey, string>>({
-    estimate: '', bid_2: '', bid_10: '', bid_100: '',
-  })
-  const [fieldErrors, setFieldErrors] = useState<Record<FieldKey, string>>({
-    estimate: '', bid_2: '', bid_10: '', bid_100: '',
-  })
+
+  const [estimate, setEstimate] = useState('')
+  const [bid2, setBid2] = useState('')
+  const [bid10, setBid10] = useState('')
+  const [bid100, setBid100] = useState('')
+
+  const [inputError, setInputError] = useState('')
   const [alreadySubmitted, setAlreadySubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // ── Identify ─────────────────────────────────────────────────────────────────
+  const questionsAnswered = Q_PANELS.indexOf(panel) // -1 on identify/complete
+
+  // ── Identify ──────────────────────────────────────────────────────────────────
 
   async function handleIdentify() {
     const id = studentId.trim()
@@ -60,7 +38,7 @@ export default function Experiment4Flow() {
         setAlreadySubmitted(true)
         setPanel('complete')
       } else {
-        setPanel('survey')
+        setPanel('q1')
       }
     } catch {
       setError('Network error. Please try again.')
@@ -69,49 +47,49 @@ export default function Experiment4Flow() {
     }
   }
 
-  // ── Survey ────────────────────────────────────────────────────────────────────
+  // ── Per-question advance ───────────────────────────────────────────────────────
 
-  function handleChange(key: FieldKey, value: string) {
-    setValues((prev) => ({ ...prev, [key]: value }))
-    setFieldErrors((prev) => ({ ...prev, [key]: '' }))
-    setError('')
-  }
-
-  function validateAndReview() {
-    const errors: Record<FieldKey, string> = { estimate: '', bid_2: '', bid_10: '', bid_100: '' }
-    let hasError = false
-
-    for (const q of QUESTIONS) {
-      const v = parseFloat(values[q.key])
-      if (isNaN(v) || v < 0) {
-        errors[q.key] = 'Enter a number ≥ 0'
-        hasError = true
-      }
+  function validateNumber(val: string, label: string): boolean {
+    const v = parseFloat(val)
+    if (isNaN(v) || v < 0) {
+      setInputError(`Please enter a valid number for ${label}.`)
+      return false
     }
-
-    if (hasError) { setFieldErrors(errors); return }
-    setError('')
-    setPanel('confirm')
+    setInputError('')
+    return true
   }
 
-  // ── Submit ────────────────────────────────────────────────────────────────────
+  function handleQ1() {
+    if (!validateNumber(estimate, 'your estimate')) return
+    setPanel('q2')
+  }
 
-  async function handleSubmit() {
+  function handleQ2() {
+    if (!validateNumber(bid2, 'your bid')) return
+    setPanel('q3')
+  }
+
+  function handleQ3() {
+    if (!validateNumber(bid10, 'your bid')) return
+    setPanel('q4')
+  }
+
+  async function handleQ4() {
+    if (!validateNumber(bid100, 'your bid')) return
     setLoading(true)
-    setError('')
+    setInputError('')
     try {
       const res = await fetch('/api/experiment4', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           student_id: studentId.trim(),
-          estimate: parseFloat(values.estimate),
-          bid_2: parseFloat(values.bid_2),
-          bid_10: parseFloat(values.bid_10),
-          bid_100: parseFloat(values.bid_100),
+          estimate: parseFloat(estimate),
+          bid_2: parseFloat(bid2),
+          bid_10: parseFloat(bid10),
+          bid_100: parseFloat(bid100),
         }),
       })
-
       if (res.status === 409) {
         setAlreadySubmitted(true)
         setPanel('complete')
@@ -119,25 +97,29 @@ export default function Experiment4Flow() {
       }
       if (!res.ok) {
         const json = await res.json()
-        setError(json.error ?? 'Submission failed. Please try again.')
+        setInputError(json.error ?? 'Submission failed. Please try again.')
         return
       }
-
       setPanel('complete')
     } catch {
-      setError('Network error. Please try again.')
+      setInputError('Network error. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  // ── Layout ────────────────────────────────────────────────────────────────────
+  function goBack() {
+    setInputError('')
+    const idx = PANEL_ORDER.indexOf(panel)
+    if (idx > 0) setPanel(PANEL_ORDER[idx - 1])
+  }
 
-  const isSurvey = panel === 'survey' || panel === 'confirm'
+  // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg)' }}>
 
+      {/* Header */}
       <header
         className="border-b px-6 py-3 flex items-center justify-between"
         style={{ borderColor: 'var(--border)' }}
@@ -153,19 +135,26 @@ export default function Experiment4Flow() {
             Experiment 4: Jar of Kernels
           </span>
         </div>
-        <div style={{ width: '4rem' }} />
+        {/* Question progress dots */}
+        <div className="flex gap-1 items-center">
+          {Q_PANELS.map((p, i) => {
+            const done = questionsAnswered > i
+            const current = panel === p
+            let cls = 'round-dot'
+            if (done) cls += ' completed'
+            else if (current) cls += ' current'
+            return <span key={p} className={cls} />
+          })}
+        </div>
       </header>
 
-      <main
-        className="flex-1 flex px-6 py-12"
-        style={{ alignItems: isSurvey ? 'flex-start' : 'center', justifyContent: 'center' }}
-      >
-        <div className={`w-full ${isSurvey ? 'max-w-2xl' : 'max-w-md'}`}>
+      <main className="flex-1 flex items-center justify-center px-6 py-12">
+        <div className="w-full max-w-md">
 
           {/* ── PANEL: identify ── */}
           {panel === 'identify' && (
             <div>
-              <StepIndicator step={1} />
+              <StepIndicator current="identify" />
               <h2 className="serif text-3xl mb-2 mt-6" style={{ color: 'var(--text)' }}>
                 Identify Yourself
               </h2>
@@ -187,169 +176,179 @@ export default function Experiment4Flow() {
                 onClick={handleIdentify}
                 disabled={loading}
               >
-                {loading ? 'Checking…' : 'Begin Survey →'}
+                {loading ? 'Checking…' : 'Begin →'}
               </button>
             </div>
           )}
 
-          {/* ── PANEL: survey ── */}
-          {panel === 'survey' && (
+          {/* ── PANEL: q1 — Estimate ── */}
+          {panel === 'q1' && (
             <div>
-              <StepIndicator step={2} />
+              <StepIndicator current="q1" />
               <h2 className="serif text-3xl mb-2 mt-6" style={{ color: 'var(--text)' }}>
-                Estimating and Bidding for the Jar
+                Question 1: Estimate
               </h2>
               <p className="text-xs mb-6" style={{ color: 'var(--text-muted)' }}>
-                Perm number: {studentId.trim()}
+                Perm: {studentId.trim()}
               </p>
 
               <div
                 className="rounded-xl p-5 mb-6"
                 style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
               >
-                <p className="text-xs uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>
+                <p className="text-xs uppercase tracking-widest mb-3" style={{ color: 'var(--navy)', fontWeight: 600 }}>
                   Context
                 </p>
                 <p className="text-sm" style={{ color: 'var(--text)', lineHeight: 1.7 }}>
-                  You see a jar containing an unknown number of kernels. Each kernel is worth $1,
-                  so the value of the jar equals the number of kernels inside it.
+                  You see a jar containing an unknown number of kernels.
+                  Each kernel is worth $1, so the value of the jar equals the number of kernels inside it.
                 </p>
-                <p className="text-sm mt-2" style={{ color: 'var(--text-muted)', lineHeight: 1.7 }}>
-                  Please answer each question independently. Do not discuss your answers with others.
+                <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+                  Please answer each question independently.
                 </p>
               </div>
 
-              <div className="rounded-xl overflow-hidden mb-4" style={{ border: '1px solid var(--border)' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                  <thead>
-                    <tr style={{ background: 'var(--navy)', color: 'white' }}>
-                      <th style={thStyle}>Question</th>
-                      <th style={{ ...thStyle, width: '160px' }}>Your Answer</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {QUESTIONS.map((q, i) => (
-                      <tr
-                        key={q.key}
-                        style={{
-                          borderBottom: '1px solid var(--border)',
-                          background: i % 2 === 0 ? 'white' : 'var(--surface)',
-                          verticalAlign: 'top',
-                        }}
-                      >
-                        <td style={{ padding: '0.75rem 1rem' }}>
-                          <p className="text-xs uppercase tracking-widest mb-1" style={{ color: 'var(--navy)', fontWeight: 600 }}>
-                            Q{i + 1}
-                          </p>
-                          <p className="text-sm" style={{ color: 'var(--text)', lineHeight: 1.65 }}>
-                            {q.question}
-                          </p>
-                        </td>
-                        <td style={{ padding: '0.75rem 1rem' }}>
-                          <input
-                            type="number"
-                            min="0"
-                            step="1"
-                            placeholder="0"
-                            value={values[q.key]}
-                            onChange={(e) => handleChange(q.key, e.target.value)}
-                            style={{
-                              width: '100%',
-                              border: `1.5px solid ${fieldErrors[q.key] ? '#dc2626' : 'var(--border)'}`,
-                              borderRadius: '6px',
-                              padding: '0.35rem 0.5rem',
-                              fontFamily: 'inherit',
-                              fontSize: '0.85rem',
-                              background: 'white',
-                              color: 'var(--text)',
-                              outline: 'none',
-                            }}
-                          />
-                          {fieldErrors[q.key] && (
-                            <span style={{ color: '#dc2626', fontSize: '0.68rem', display: 'block', marginTop: '3px' }}>
-                              {fieldErrors[q.key]}
-                            </span>
-                          )}
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.68rem' }}>
-                            {q.sublabel}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <p className="text-sm mb-4" style={{ color: 'var(--text)', lineHeight: 1.7 }}>
+                How many kernels do you think are in the jar?
+              </p>
+              <input
+                type="number"
+                className="w-full rounded-lg px-4 py-3 text-base mb-2"
+                placeholder="Number of kernels"
+                min="0"
+                step="1"
+                value={estimate}
+                onChange={(e) => { setEstimate(e.target.value); setInputError('') }}
+                onKeyDown={(e) => e.key === 'Enter' && handleQ1()}
+                autoFocus
+              />
+              {inputError && <p className="text-xs mb-2" style={{ color: '#dc2626' }}>{inputError}</p>}
+              <div className="flex gap-3 mt-2">
+                <button className="btn-ghost flex-1 rounded-lg px-4 py-3 text-sm" onClick={goBack}>
+                  ← Back
+                </button>
+                <button className="btn-gold flex-1 rounded-lg px-4 py-3 text-sm" onClick={handleQ1}>
+                  Continue →
+                </button>
               </div>
-
-              {error && (
-                <div
-                  className="rounded-lg px-4 py-3 mb-4 text-sm"
-                  style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', lineHeight: 1.6 }}
-                >
-                  {error}
-                </div>
-              )}
-
-              <button className="btn-gold w-full rounded-lg px-4 py-3 text-sm" onClick={validateAndReview}>
-                Review My Answers →
-              </button>
             </div>
           )}
 
-          {/* ── PANEL: confirm ── */}
-          {panel === 'confirm' && (
+          {/* ── PANEL: q2 — 2-bidder auction ── */}
+          {panel === 'q2' && (
             <div>
-              <StepIndicator step={3} />
+              <StepIndicator current="q2" />
               <h2 className="serif text-3xl mb-2 mt-6" style={{ color: 'var(--text)' }}>
-                Review & Submit
+                Question 2: 2-Bidder Auction
               </h2>
               <p className="text-xs mb-6" style={{ color: 'var(--text-muted)' }}>
-                Perm number: {studentId.trim()}
+                Perm: {studentId.trim()}
               </p>
 
-              <div className="rounded-xl overflow-hidden mb-5" style={{ border: '1px solid var(--border)' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                  <thead>
-                    <tr style={{ background: 'var(--navy)', color: 'white' }}>
-                      <th style={thStyle}>Question</th>
-                      <th style={{ ...thStyle, width: '120px' }}>Your Answer</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {QUESTIONS.map((q, i) => (
-                      <tr
-                        key={q.key}
-                        style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'white' : 'var(--surface)' }}
-                      >
-                        <td style={{ padding: '0.5rem 1rem', color: 'var(--text)', fontSize: '0.85rem', lineHeight: 1.5 }}>
-                          <span style={{ color: 'var(--navy)', fontWeight: 600, marginRight: '0.4rem' }}>Q{i + 1}</span>
-                          {q.label}
-                        </td>
-                        <td style={{ padding: '0.5rem 1rem', fontWeight: 600, color: 'var(--text)' }}>
-                          {parseFloat(values[q.key]).toLocaleString()} {q.sublabel}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ContextBar estimate={estimate} />
 
-              {error && (
-                <p className="text-xs mb-4" style={{ color: '#dc2626' }}>{error}</p>
-              )}
-
-              <div className="flex gap-3">
-                <button
-                  className="btn-ghost flex-1 rounded-lg px-4 py-3 text-sm"
-                  onClick={() => { setPanel('survey'); setError('') }}
-                  disabled={loading}
-                >
-                  ← Edit
+              <p className="text-sm mb-6" style={{ color: 'var(--text)', lineHeight: 1.7 }}>
+                You are bidding in a <strong>first-price sealed-bid auction</strong> against{' '}
+                <strong>1 other bidder</strong>. Everyone submits one private bid; the highest
+                bidder wins and pays their own bid. How much would you bid for the jar?
+              </p>
+              <input
+                type="number"
+                className="w-full rounded-lg px-4 py-3 text-base mb-2"
+                placeholder="Your bid ($)"
+                min="0"
+                step="1"
+                value={bid2}
+                onChange={(e) => { setBid2(e.target.value); setInputError('') }}
+                onKeyDown={(e) => e.key === 'Enter' && handleQ2()}
+                autoFocus
+              />
+              {inputError && <p className="text-xs mb-2" style={{ color: '#dc2626' }}>{inputError}</p>}
+              <div className="flex gap-3 mt-2">
+                <button className="btn-ghost flex-1 rounded-lg px-4 py-3 text-sm" onClick={goBack}>
+                  ← Back
                 </button>
-                <button
-                  className="btn-gold flex-1 rounded-lg px-4 py-3 text-sm"
-                  onClick={handleSubmit}
-                  disabled={loading}
-                >
+                <button className="btn-gold flex-1 rounded-lg px-4 py-3 text-sm" onClick={handleQ2}>
+                  Continue →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── PANEL: q3 — 10-bidder auction ── */}
+          {panel === 'q3' && (
+            <div>
+              <StepIndicator current="q3" />
+              <h2 className="serif text-3xl mb-2 mt-6" style={{ color: 'var(--text)' }}>
+                Question 3: 10-Bidder Auction
+              </h2>
+              <p className="text-xs mb-6" style={{ color: 'var(--text-muted)' }}>
+                Perm: {studentId.trim()}
+              </p>
+
+              <ContextBar estimate={estimate} bid2={bid2} />
+
+              <p className="text-sm mb-6" style={{ color: 'var(--text)', lineHeight: 1.7 }}>
+                Same first-price sealed-bid auction, but now against{' '}
+                <strong>9 other bidders</strong>. How much would you bid for the jar?
+              </p>
+              <input
+                type="number"
+                className="w-full rounded-lg px-4 py-3 text-base mb-2"
+                placeholder="Your bid ($)"
+                min="0"
+                step="1"
+                value={bid10}
+                onChange={(e) => { setBid10(e.target.value); setInputError('') }}
+                onKeyDown={(e) => e.key === 'Enter' && handleQ3()}
+                autoFocus
+              />
+              {inputError && <p className="text-xs mb-2" style={{ color: '#dc2626' }}>{inputError}</p>}
+              <div className="flex gap-3 mt-2">
+                <button className="btn-ghost flex-1 rounded-lg px-4 py-3 text-sm" onClick={goBack}>
+                  ← Back
+                </button>
+                <button className="btn-gold flex-1 rounded-lg px-4 py-3 text-sm" onClick={handleQ3}>
+                  Continue →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── PANEL: q4 — 100-bidder auction ── */}
+          {panel === 'q4' && (
+            <div>
+              <StepIndicator current="q4" />
+              <h2 className="serif text-3xl mb-2 mt-6" style={{ color: 'var(--text)' }}>
+                Question 4: 100-Bidder Auction
+              </h2>
+              <p className="text-xs mb-6" style={{ color: 'var(--text-muted)' }}>
+                Perm: {studentId.trim()}
+              </p>
+
+              <ContextBar estimate={estimate} bid2={bid2} bid10={bid10} />
+
+              <p className="text-sm mb-6" style={{ color: 'var(--text)', lineHeight: 1.7 }}>
+                Same first-price sealed-bid auction, but now against{' '}
+                <strong>99 other bidders</strong>. How much would you bid for the jar?
+              </p>
+              <input
+                type="number"
+                className="w-full rounded-lg px-4 py-3 text-base mb-2"
+                placeholder="Your bid ($)"
+                min="0"
+                step="1"
+                value={bid100}
+                onChange={(e) => { setBid100(e.target.value); setInputError('') }}
+                onKeyDown={(e) => e.key === 'Enter' && handleQ4()}
+                autoFocus
+              />
+              {inputError && <p className="text-xs mb-2" style={{ color: '#dc2626' }}>{inputError}</p>}
+              <div className="flex gap-3 mt-2">
+                <button className="btn-ghost flex-1 rounded-lg px-4 py-3 text-sm" onClick={goBack} disabled={loading}>
+                  ← Back
+                </button>
+                <button className="btn-gold flex-1 rounded-lg px-4 py-3 text-sm" onClick={handleQ4} disabled={loading}>
                   {loading ? 'Submitting…' : 'Submit →'}
                 </button>
               </div>
@@ -396,34 +395,60 @@ export default function Experiment4Flow() {
   )
 }
 
-// ── Shared cell styles ────────────────────────────────────────────────────────
+// ── Context reminder bar ──────────────────────────────────────────────────────
 
-const thStyle: React.CSSProperties = {
-  padding: '0.6rem 1rem',
-  textAlign: 'left',
-  fontFamily: 'inherit',
-  fontSize: '0.72rem',
-  letterSpacing: '0.08em',
-  textTransform: 'uppercase',
-  fontWeight: 500,
+function ContextBar({
+  estimate,
+  bid2,
+  bid10,
+}: {
+  estimate?: string
+  bid2?: string
+  bid10?: string
+}) {
+  const items: { label: string; value: string }[] = []
+  if (estimate) items.push({ label: 'Estimate', value: `${parseFloat(estimate).toLocaleString()} kernels` })
+  if (bid2) items.push({ label: '2-bidder bid', value: `$${parseFloat(bid2).toLocaleString()}` })
+  if (bid10) items.push({ label: '10-bidder bid', value: `$${parseFloat(bid10).toLocaleString()}` })
+  if (items.length === 0) return null
+  return (
+    <div
+      className="flex flex-wrap gap-x-4 gap-y-1 text-xs rounded-lg px-4 py-3 mb-6"
+      style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+    >
+      {items.map((item, i) => (
+        <span key={i} style={{ color: 'var(--text-muted)' }}>
+          {item.label}:{' '}
+          <span style={{ color: 'var(--navy)', fontWeight: 500 }}>{item.value}</span>
+        </span>
+      ))}
+    </div>
+  )
 }
 
 // ── Step indicator ────────────────────────────────────────────────────────────
 
-function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
-  const steps = ['Identify', 'Survey', 'Confirm']
+const STEPS: { key: Panel; label: string }[] = [
+  { key: 'identify', label: 'Identify' },
+  { key: 'q1', label: 'Estimate' },
+  { key: 'q2', label: '2 Bidders' },
+  { key: 'q3', label: '10 Bidders' },
+  { key: 'q4', label: '100 Bidders' },
+]
+
+function StepIndicator({ current }: { current: Panel }) {
+  const currentIdx = STEPS.findIndex((s) => s.key === current)
   return (
-    <div className="flex gap-2 items-center">
-      {steps.map((label, i) => {
-        const s = i + 1
-        const active = s === step
-        const done = s < step
+    <div className="flex flex-wrap gap-1.5 items-center">
+      {STEPS.map((step, i) => {
+        const active = step.key === current
+        const done = i < currentIdx
         return (
-          <div key={s} className="flex items-center gap-2">
+          <div key={step.key} className="flex items-center gap-1.5">
             {i > 0 && (
-              <div className="w-6 h-px" style={{ background: done ? 'var(--navy)' : 'var(--border)' }} />
+              <div className="w-4 h-px" style={{ background: done ? 'var(--navy)' : 'var(--border)' }} />
             )}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               <span
                 className="w-5 h-5 rounded-full flex items-center justify-center text-xs"
                 style={{
@@ -432,10 +457,10 @@ function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
                   fontWeight: 600,
                 }}
               >
-                {done ? '✓' : s}
+                {done ? '✓' : i + 1}
               </span>
               <span className="text-xs" style={{ color: active ? 'var(--text)' : 'var(--text-muted)' }}>
-                {label}
+                {step.label}
               </span>
             </div>
           </div>
