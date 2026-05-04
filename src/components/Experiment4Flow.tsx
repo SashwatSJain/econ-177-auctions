@@ -438,9 +438,10 @@ const STEPS: { key: Panel; label: string }[] = [
 
 function StepIndicator({ current }: { current: Panel }) {
   const currentIdx = STEPS.findIndex((s) => s.key === current)
+  const visibleSteps = STEPS.slice(0, currentIdx + 1)
   return (
     <div className="flex flex-wrap gap-1.5 items-center">
-      {STEPS.map((step, i) => {
+      {visibleSteps.map((step, i) => {
         const active = step.key === current
         const done = i < currentIdx
         return (
