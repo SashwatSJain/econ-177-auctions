@@ -236,7 +236,7 @@ export default function Experiment4Flow() {
             <div>
               <StepIndicator current="q2" />
               <h2 className="serif text-3xl mb-2 mt-6" style={{ color: 'var(--text)' }}>
-                Question 2: 1 Other Bidder
+                Question 2: 1 Bidder
               </h2>
               <p className="text-xs mb-6" style={{ color: 'var(--text-muted)' }}>
                 Perm: {studentId.trim()}
@@ -277,7 +277,7 @@ export default function Experiment4Flow() {
             <div>
               <StepIndicator current="q3" />
               <h2 className="serif text-3xl mb-2 mt-6" style={{ color: 'var(--text)' }}>
-                Question 3: 9 Other Bidders
+                Question 3: 10 Bidders
               </h2>
               <p className="text-xs mb-6" style={{ color: 'var(--text-muted)' }}>
                 Perm: {studentId.trim()}
@@ -317,7 +317,7 @@ export default function Experiment4Flow() {
             <div>
               <StepIndicator current="q4" />
               <h2 className="serif text-3xl mb-2 mt-6" style={{ color: 'var(--text)' }}>
-                Question 4: 99 Other Bidders
+                Question 4: 100 Bidders
               </h2>
               <p className="text-xs mb-6" style={{ color: 'var(--text-muted)' }}>
                 Perm: {studentId.trim()}
@@ -405,8 +405,8 @@ function ContextBar({
 }) {
   const items: { label: string; value: string }[] = []
   if (estimate) items.push({ label: 'Estimate', value: `${parseFloat(estimate).toLocaleString()} kernels` })
-  if (bid2) items.push({ label: 'Bid (1 other)', value: `$${parseFloat(bid2).toLocaleString()}` })
-  if (bid10) items.push({ label: 'Bid (9 others)', value: `$${parseFloat(bid10).toLocaleString()}` })
+  if (bid2) items.push({ label: 'Bid (1 bidder)', value: `$${parseFloat(bid2).toLocaleString()}` })
+  if (bid10) items.push({ label: 'Bid (10 bidders)', value: `$${parseFloat(bid10).toLocaleString()}` })
   if (items.length === 0) return null
   return (
     <div
