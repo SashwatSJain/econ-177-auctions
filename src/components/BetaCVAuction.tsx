@@ -86,8 +86,13 @@ export default function BetaCVAuction() {
   }
 
   async function handleBid() {
-    const b = parseInt(bid, 10)
-    if (!Number.isInteger(b) || b < 0 || b > 6) {
+    const trimmed = bid.trim()
+    if (!/^\d+$/.test(trimmed)) {
+      setInputError('Whole numbers only — no decimals.')
+      return
+    }
+    const b = parseInt(trimmed, 10)
+    if (b < 0 || b > 6) {
       setInputError('Enter a whole number between 0 and 6.')
       return
     }
@@ -196,8 +201,8 @@ export default function BetaCVAuction() {
                 <WellDiagram myValue={entry.half_value} />
                 <p className="text-xs mt-3 text-center" style={{ color: 'var(--text-muted)' }}>
                   {entry.half_value === 3
-                    ? 'Your half = $3. Partner\'s half is $0 or $3, so V = $3 or $6 (each equally likely).'
-                    : 'Your half = $0. Partner\'s half is $0 or $3, so V = $0 or $3 (each equally likely).'}
+                    ? 'Your half = $3. Opponent\'s half is $0 or $3, so V = $3 or $6 (each equally likely).'
+                    : 'Your half = $0. Opponent\'s half is $0 or $3, so V = $0 or $3 (each equally likely).'}
                 </p>
               </div>
 
@@ -302,7 +307,7 @@ function Results({
         </div>
         <div className="text-center">
           <p className="text-xs uppercase tracking-widest mb-1" style={{ color: 'var(--text-muted)', fontWeight: 600 }}>
-            Partner's Half
+            Opponent's Half
           </p>
           <p className="serif text-3xl" style={{ color: 'var(--navy)' }}>${partner.half_value}</p>
         </div>
@@ -329,7 +334,7 @@ function Results({
         </div>
         <div className="text-center">
           <p className="text-xs uppercase tracking-widest mb-1" style={{ color: 'var(--text-muted)', fontWeight: 600 }}>
-            Partner's Bid
+            Opponent's Bid
           </p>
           <p className="serif text-3xl" style={{ color: !won ? 'var(--navy)' : 'var(--text-muted)' }}>
             ${partner.bid}
@@ -367,12 +372,39 @@ function Results({
 function WellDiagram({ myValue, className = '' }: { myValue?: number; className?: string }) {
   const revealed = myValue !== undefined
   const leftLabel = revealed ? `$${myValue}` : '?'
-  const W = 280, H = 140
+  const W = 280, H = 210
   const cx = W / 2
-  // ground line y
-  const groundY = 28
-  // well rect
-  const wellX = 30, wellY = groundY, wellW = W - 60, wellH = H - groundY - 12
+  const groundY = 80
+  const wellX = 30, wellW = W - 60, wellH = H - groundY - 12
+
+  // Each half's center x
+  const leftCx = wellX + (wellW / 2 - 1) / 2
+  const rightCx = cx + 1 + (wellW / 2 - 1) / 2
+
+  // Derrick helper: draws one A-frame derrick above (centerX, groundY)
+  function Derrick({ centerX }: { centerX: number }) {
+    const apexY = 6
+    const spread = 20
+    const lx = centerX - spread, rx = centerX + spread
+    const brace1y = groundY - (groundY - apexY) * 0.35
+    const brace2y = groundY - (groundY - apexY) * 0.65
+    const brace1w = spread * 2 * (1 - 0.35)
+    const brace2w = spread * 2 * (1 - 0.65)
+    return (
+      <>
+        <line x1={lx} y1={groundY} x2={centerX} y2={apexY} stroke="#4a5568" strokeWidth={2} strokeLinecap="round" />
+        <line x1={rx} y1={groundY} x2={centerX} y2={apexY} stroke="#4a5568" strokeWidth={2} strokeLinecap="round" />
+        <line x1={centerX - brace1w / 2} y1={brace1y} x2={centerX + brace1w / 2} y2={brace1y} stroke="#4a5568" strokeWidth={1.5} />
+        <line x1={centerX - brace2w / 2} y1={brace2y} x2={centerX + brace2w / 2} y2={brace2y} stroke="#4a5568" strokeWidth={1.5} />
+        <rect x={centerX - 4} y={apexY - 2} width={8} height={5} rx={1} fill="#4a5568" />
+        <rect x={lx - 3} y={groundY - 5} width={(spread + 3) * 2} height={5} rx={1} fill="#718096" />
+        {/* drill string */}
+        <line x1={centerX} y1={apexY + 3} x2={centerX} y2={groundY + wellH} stroke="#718096" strokeWidth={1.5} strokeDasharray="4 3" />
+        {/* drill bit */}
+        <polygon points={`${centerX},${groundY + wellH + 7} ${centerX - 4},${groundY + wellH} ${centerX + 4},${groundY + wellH}`} fill="#4a5568" />
+      </>
+    )
+  }
 
   return (
     <svg
@@ -381,32 +413,74 @@ function WellDiagram({ myValue, className = '' }: { myValue?: number; className?
       style={{ width: '100%', maxWidth: 320, display: 'block', margin: '0 auto' }}
       aria-label="Oil well cross-section"
     >
+      {/* sky */}
+      <rect x={0} y={0} width={W} height={groundY} fill="#f0f4f8" />
+
+      {/* two derricks */}
+      <Derrick centerX={leftCx} />
+      <Derrick centerX={rightCx} />
+
+      <defs>
+        <linearGradient id="oilGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#2a1000" />
+          <stop offset="50%" stopColor="#0f0400" />
+          <stop offset="100%" stopColor="#060100" />
+        </linearGradient>
+        <linearGradient id="rockGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ddd0b0" />
+          <stop offset="100%" stopColor="#c8b888" />
+        </linearGradient>
+        <linearGradient id="unknownGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#d8c8a0" />
+          <stop offset="100%" stopColor="#c0b080" />
+        </linearGradient>
+      </defs>
+
       {/* ground */}
-      <rect x={0} y={0} width={W} height={groundY} fill="#e8dcc8" />
+      <rect x={0} y={groundY} width={W} height={6} fill="#c8b89a" />
+      <rect x={0} y={groundY + 6} width={W} height={wellH + 12} fill="#d4c4a8" />
       <line x1={0} y1={groundY} x2={W} y2={groundY} stroke="#a08060" strokeWidth={1.5} />
-      <text x={W / 2} y={groundY - 7} textAnchor="middle" fontSize={9} fill="#a08060" fontFamily="inherit" letterSpacing="1">
-        GROUND SURFACE
+      <text x={8} y={groundY - 10} fontSize={8} fill="#718096" fontFamily="inherit" letterSpacing="0.5">
+        GROUND
       </text>
 
       {/* left half — your half */}
-      <rect
-        x={wellX} y={wellY} width={wellW / 2 - 1} height={wellH}
-        fill={revealed && myValue === 3 ? '#003660' : revealed ? '#f0ede8' : '#e8e0d4'}
-        stroke="#8a7050" strokeWidth={1}
-      />
-      {/* right half — partner's half */}
-      <rect
-        x={cx + 1} y={wellY} width={wellW / 2 - 1} height={wellH}
-        fill="#e8e0d4"
-        stroke="#8a7050" strokeWidth={1}
-      />
+      {revealed && myValue === 3 ? (
+        <>
+          <rect x={wellX} y={groundY} width={wellW / 2 - 1} height={wellH}
+            fill="url(#oilGrad)" stroke="#5a3010" strokeWidth={1} />
+          {/* wavy oil surface */}
+          <path
+            d={`M ${wellX},${groundY + 7} Q ${wellX + (wellW / 2 - 1) * 0.25},${groundY + 3} ${wellX + (wellW / 2 - 1) * 0.5},${groundY + 7} Q ${wellX + (wellW / 2 - 1) * 0.75},${groundY + 11} ${cx - 1},${groundY + 7}`}
+            fill="none" stroke="#5a2800" strokeWidth={1.5}
+          />
+          {/* sheen highlight */}
+          <rect x={wellX + 5} y={groundY + 14} width={5} height={wellH - 22} fill="#4d2000" fillOpacity={0.35} rx={3} />
+        </>
+      ) : (
+        <>
+          <rect x={wellX} y={groundY} width={wellW / 2 - 1} height={wellH}
+            fill={revealed ? 'url(#rockGrad)' : 'url(#unknownGrad)'} stroke="#8a7050" strokeWidth={1} />
+          {[0.28, 0.52, 0.74].map((f, i) => (
+            <line key={i} x1={wellX + 3} y1={groundY + wellH * f} x2={cx - 3} y2={groundY + wellH * f}
+              stroke="#a09070" strokeWidth={0.75} strokeOpacity={0.55} />
+          ))}
+        </>
+      )}
+      {/* right half — opponent's half (always unknown) */}
+      <rect x={cx + 1} y={groundY} width={wellW / 2 - 1} height={wellH}
+        fill="url(#unknownGrad)" stroke="#8a7050" strokeWidth={1} />
+      {[0.28, 0.52, 0.74].map((f, i) => (
+        <line key={i} x1={cx + 4} y1={groundY + wellH * f} x2={cx + wellW / 2} y2={groundY + wellH * f}
+          stroke="#a09070" strokeWidth={0.75} strokeOpacity={0.55} />
+      ))}
 
       {/* center divider */}
-      <line x1={cx} y1={wellY} x2={cx} y2={wellY + wellH} stroke="#8a7050" strokeWidth={2} strokeDasharray="4 3" />
+      <line x1={cx} y1={groundY} x2={cx} y2={groundY + wellH} stroke="#8a7050" strokeWidth={2} strokeDasharray="4 3" />
 
       {/* left label */}
       <text
-        x={wellX + (wellW / 2 - 1) / 2} y={wellY + wellH / 2 - 8}
+        x={leftCx} y={groundY + wellH / 2 - 8}
         textAnchor="middle" fontSize={22} fontWeight="700"
         fill={revealed && myValue === 3 ? '#ffffff' : '#003660'}
         fontFamily="Georgia, serif"
@@ -414,8 +488,9 @@ function WellDiagram({ myValue, className = '' }: { myValue?: number; className?
         {leftLabel}
       </text>
       <text
-        x={wellX + (wellW / 2 - 1) / 2} y={wellY + wellH / 2 + 10}
-        textAnchor="middle" fontSize={9} fill={revealed && myValue === 3 ? '#c8d8e8' : '#6b5a45'}
+        x={leftCx} y={groundY + wellH / 2 + 10}
+        textAnchor="middle" fontSize={9}
+        fill={revealed && myValue === 3 ? '#c8d8e8' : '#6b5a45'}
         fontFamily="inherit" letterSpacing="0.5"
       >
         YOUR HALF
@@ -423,18 +498,18 @@ function WellDiagram({ myValue, className = '' }: { myValue?: number; className?
 
       {/* right label */}
       <text
-        x={cx + 1 + (wellW / 2 - 1) / 2} y={wellY + wellH / 2 - 8}
+        x={rightCx} y={groundY + wellH / 2 - 8}
         textAnchor="middle" fontSize={22} fontWeight="700" fill="#8a7050"
         fontFamily="Georgia, serif"
       >
         ?
       </text>
       <text
-        x={cx + 1 + (wellW / 2 - 1) / 2} y={wellY + wellH / 2 + 10}
+        x={rightCx} y={groundY + wellH / 2 + 10}
         textAnchor="middle" fontSize={9} fill="#6b5a45"
         fontFamily="inherit" letterSpacing="0.5"
       >
-        PARTNER&apos;S HALF
+        OPPONENT&apos;S HALF
       </text>
     </svg>
   )
@@ -471,7 +546,7 @@ function OutcomeTable({ className = '' }: { className?: string }) {
         <thead>
           <tr>
             <th style={headStyle}>Your Half</th>
-            <th style={headStyle}>Partner&apos;s Half</th>
+            <th style={headStyle}>Opponent&apos;s Half</th>
             <th style={headStyle}>Well Value V</th>
             <th style={headStyle}>Probability</th>
           </tr>
