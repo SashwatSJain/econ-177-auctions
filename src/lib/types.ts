@@ -27,6 +27,17 @@ export interface Experiment3Round {
   created_at: string
 }
 
+export interface BetaCVEntry {
+  id: string
+  session_key: string
+  student_id: string
+  half_value: number
+  bid: number | null
+  pair_id: string | null
+  role: 'a' | 'b' | null
+  created_at: string
+}
+
 export interface Experiment4Response {
   id: string
   student_id: string

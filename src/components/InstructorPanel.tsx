@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { AUCTION_CONFIGS, TOTAL_ROUNDS } from '@/lib/auction-config'
 import { EXPERIMENT3_TREATMENTS } from '@/lib/experiment3-config'
-import type { Bid, Experiment3Round, Experiment4Response, RiskAversionResponse } from '@/lib/types'
+import type { Bid, BetaCVEntry, Experiment3Round, Experiment4Response, RiskAversionResponse } from '@/lib/types'
 
 // ── Risk aversion helpers ────────────────────────────────────────────────────
 
@@ -38,7 +38,7 @@ interface Props {
   userEmail: string
 }
 
-type TabKey = 'auctions' | 'experiment3' | 'assignment2' | 'experiment4'
+type TabKey = 'auctions' | 'experiment3' | 'assignment2' | 'experiment4' | 'beta_cv'
 
 export default function InstructorPanel({ userEmail }: Props) {
   const router = useRouter()
@@ -53,6 +53,7 @@ export default function InstructorPanel({ userEmail }: Props) {
   const [experiment3Rows, setExperiment3Rows] = useState<Experiment3Round[]>([])
   const [raRows, setRaRows] = useState<RiskAversionResponse[]>([])
   const [experiment4Rows, setExperiment4Rows] = useState<Experiment4Response[]>([])
+  const [betaCVRows, setBetaCVRows] = useState<BetaCVEntry[]>([])
   const [loading, setLoading] = useState(false)
 
   // Cache rows per treatment key so we can load paired treatments without refetching
@@ -97,6 +98,16 @@ export default function InstructorPanel({ userEmail }: Props) {
     }
   }, [])
 
+  const fetchBetaCVRows = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/beta/cv-auction')
+      if (res.ok) setBetaCVRows(await res.json())
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   const fetchExperiment3Rows = useCallback(async () => {
     setLoading(true)
     try {
@@ -111,6 +122,7 @@ export default function InstructorPanel({ userEmail }: Props) {
     if (activeTab === 'auctions') fetchBids()
     else if (activeTab === 'experiment3') fetchExperiment3Rows()
     else if (activeTab === 'experiment4') fetchExperiment4Rows()
+    else if (activeTab === 'beta_cv') fetchBetaCVRows()
     else fetchRaRows()
   }, [activeTab, fetchBids, fetchExperiment3Rows, fetchExperiment4Rows, fetchRaRows])
 
@@ -259,7 +271,7 @@ export default function InstructorPanel({ userEmail }: Props) {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Tab switcher */}
         <div className="flex gap-1 mb-8 border-b overflow-x-auto" style={{ borderColor: 'var(--border)' }}>
-          {(['auctions', 'assignment2', 'experiment3', 'experiment4'] as TabKey[]).map((tab) => (
+          {(['auctions', 'assignment2', 'experiment3', 'experiment4', 'beta_cv'] as TabKey[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -276,10 +288,17 @@ export default function InstructorPanel({ userEmail }: Props) {
                 ? 'Experiment 2: Risk Aversion'
                 : tab === 'experiment3'
                 ? 'Experiment 3: Seller Auction'
-                : 'Experiment 4: Jar of Kernels'}
+                : tab === 'experiment4'
+                ? 'Experiment 4: Jar of Kernels'
+                : 'Beta: Oil Well'}
             </button>
           ))}
         </div>
+
+        {/* ── Beta: CV Auction view ── */}
+        {activeTab === 'beta_cv' && (
+          <BetaCVView rows={betaCVRows} loading={loading} onRefresh={fetchBetaCVRows} />
+        )}
 
         {/* ── Experiment 4 view ── */}
         {activeTab === 'experiment4' && (
@@ -1934,6 +1953,154 @@ function Experiment4View({
                   <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--navy)', fontWeight: 500 }}>${Number(row.bid_100).toFixed(2)}</td>
                   <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                     {new Date(row.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Beta: CV Auction instructor view ─────────────────────────────────────────
+
+function BetaCVView({
+  rows,
+  loading,
+  onRefresh,
+}: {
+  rows: BetaCVEntry[]
+  loading: boolean
+  onRefresh: () => void
+}) {
+  const [pairing, setPairing] = useState(false)
+  const [resetting, setResetting] = useState(false)
+  const [actionMsg, setActionMsg] = useState('')
+
+  const submitted = rows.filter((r) => r.bid !== null)
+  const paired = rows.filter((r) => r.pair_id !== null)
+  const unpaired = submitted.filter((r) => r.pair_id === null)
+
+  async function handlePairAll() {
+    setPairing(true)
+    setActionMsg('')
+    try {
+      const res = await fetch('/api/beta/cv-auction', { method: 'POST' })
+      const json = await res.json()
+      setActionMsg(`Paired ${json.paired} students. ${json.unpaired} left without a pair.`)
+      await onRefresh()
+    } catch {
+      setActionMsg('Error pairing. Please try again.')
+    } finally {
+      setPairing(false)
+    }
+  }
+
+  async function handleReset() {
+    if (!confirm('Delete all Oil Well entries? This cannot be undone.')) return
+    setResetting(true)
+    setActionMsg('')
+    try {
+      await fetch('/api/beta/cv-auction', { method: 'DELETE' })
+      setActionMsg('Session reset.')
+      await onRefresh()
+    } catch {
+      setActionMsg('Error resetting.')
+    } finally {
+      setResetting(false)
+    }
+  }
+
+  return (
+    <div>
+      <div
+        className="grid grid-cols-2 sm:grid-cols-4 gap-4 rounded-xl p-4 mb-6"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+      >
+        <Stat label="Joined" value={rows.length} />
+        <Stat label="Bids Submitted" value={submitted.length} />
+        <Stat label="Paired" value={paired.length} />
+        <Stat label="Unpaired Bidders" value={unpaired.length} />
+      </div>
+
+      <div className="flex flex-wrap gap-2 items-center justify-between mb-4">
+        <div className="flex gap-2 flex-wrap items-center">
+          <button
+            onClick={handlePairAll}
+            className="btn-gold text-xs px-3 py-1.5 rounded"
+            disabled={pairing || unpaired.length === 0}
+          >
+            {pairing ? 'Pairing…' : `Pair All (${unpaired.length} waiting)`}
+          </button>
+          <button
+            onClick={handleReset}
+            className="text-xs px-3 py-1.5 rounded transition-all"
+            disabled={resetting || rows.length === 0}
+            style={{
+              background: 'transparent',
+              border: '1px solid #fca5a5',
+              color: '#dc2626',
+            }}
+          >
+            {resetting ? 'Resetting…' : 'Reset Session'}
+          </button>
+          {actionMsg && (
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{actionMsg}</span>
+          )}
+        </div>
+        <button onClick={onRefresh} className="btn-ghost text-xs px-3 py-1.5 rounded" disabled={loading}>
+          {loading ? 'Loading…' : '↻ Refresh'}
+        </button>
+      </div>
+
+      {rows.length === 0 ? (
+        <div
+          className="rounded-xl p-12 text-center"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+        >
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+            {loading ? 'Loading…' : 'No students have joined yet. Share /beta with your class.'}
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-xl overflow-auto" style={{ border: '1px solid var(--border)' }}>
+          <table className="w-full text-sm" style={{ minWidth: '640px' }}>
+            <thead>
+              <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+                {['#', 'Student ID', 'Half Value', 'Bid', 'Pair ID', 'Role', 'Joined'].map((h) => (
+                  <th key={h} className="text-left px-4 py-3 text-xs tracking-wide font-medium" style={{ color: 'var(--text-muted)' }}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr
+                  key={row.id}
+                  style={{
+                    background: row.pair_id
+                      ? 'rgba(0,54,96,0.03)'
+                      : i % 2 === 0 ? '#fff' : 'var(--surface)',
+                    borderBottom: '1px solid var(--border)',
+                  }}
+                >
+                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>{i + 1}</td>
+                  <td className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text)' }}>{row.student_id}</td>
+                  <td className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--navy)' }}>${row.half_value}</td>
+                  <td className="px-4 py-2.5 text-xs" style={{ color: row.bid !== null ? 'var(--text)' : 'var(--text-muted)' }}>
+                    {row.bid !== null ? `$${row.bid}` : '—'}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs font-mono" style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
+                    {row.pair_id ? row.pair_id.slice(0, 8) + '…' : '—'}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {row.role ?? '—'}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {new Date(row.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
                   </td>
                 </tr>
               ))}
