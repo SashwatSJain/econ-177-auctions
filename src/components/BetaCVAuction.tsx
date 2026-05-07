@@ -372,36 +372,37 @@ function Results({
 function WellDiagram({ myValue, className = '' }: { myValue?: number; className?: string }) {
   const revealed = myValue !== undefined
   const leftLabel = revealed ? `$${myValue}` : '?'
-  const W = 280, H = 210
-  const cx = W / 2
-  const groundY = 80
-  const wellX = 30, wellW = W - 60, wellH = H - groundY - 12
+  const W = 280, H = 246
+  const cx = W / 2            // 140
+  const groundY = 78
 
-  // Each half's center x
-  const leftCx = wellX + (wellW / 2 - 1) / 2
-  const rightCx = cx + 1 + (wellW / 2 - 1) / 2
+  // Derrick center x-positions (quarter and three-quarter of W)
+  const leftCx = 70
+  const rightCx = 210
 
-  // Derrick helper: draws one A-frame derrick above (centerX, groundY)
+  // Reservoir: organic ellipse at bottom
+  const resCy = H - 30        // 216
+  const resRx = 110
+  const resRy = 28
+  const casingW = 11
+  const casingBottom = resCy - resRy + 4   // enters reservoir top
+
+  // Wavy ground-surface top shared by all strata layers
+  const top = `M 0,${groundY} Q 70,${groundY - 3} 140,${groundY + 1} Q 210,${groundY + 4} 280,${groundY - 1}`
+
   function Derrick({ centerX }: { centerX: number }) {
-    const apexY = 6
+    const apexY = 5
     const spread = 20
     const lx = centerX - spread, rx = centerX + spread
-    const brace1y = groundY - (groundY - apexY) * 0.35
-    const brace2y = groundY - (groundY - apexY) * 0.65
-    const brace1w = spread * 2 * (1 - 0.35)
-    const brace2w = spread * 2 * (1 - 0.65)
+    const h = groundY - apexY
     return (
       <>
         <line x1={lx} y1={groundY} x2={centerX} y2={apexY} stroke="#4a5568" strokeWidth={2} strokeLinecap="round" />
         <line x1={rx} y1={groundY} x2={centerX} y2={apexY} stroke="#4a5568" strokeWidth={2} strokeLinecap="round" />
-        <line x1={centerX - brace1w / 2} y1={brace1y} x2={centerX + brace1w / 2} y2={brace1y} stroke="#4a5568" strokeWidth={1.5} />
-        <line x1={centerX - brace2w / 2} y1={brace2y} x2={centerX + brace2w / 2} y2={brace2y} stroke="#4a5568" strokeWidth={1.5} />
+        <line x1={centerX - spread * 0.65} y1={groundY - h * 0.35} x2={centerX + spread * 0.65} y2={groundY - h * 0.35} stroke="#4a5568" strokeWidth={1.5} />
+        <line x1={centerX - spread * 0.35} y1={groundY - h * 0.65} x2={centerX + spread * 0.35} y2={groundY - h * 0.65} stroke="#4a5568" strokeWidth={1.5} />
         <rect x={centerX - 4} y={apexY - 2} width={8} height={5} rx={1} fill="#4a5568" />
         <rect x={lx - 3} y={groundY - 5} width={(spread + 3) * 2} height={5} rx={1} fill="#718096" />
-        {/* drill string */}
-        <line x1={centerX} y1={apexY + 3} x2={centerX} y2={groundY + wellH} stroke="#718096" strokeWidth={1.5} strokeDasharray="4 3" />
-        {/* drill bit */}
-        <polygon points={`${centerX},${groundY + wellH + 7} ${centerX - 4},${groundY + wellH} ${centerX + 4},${groundY + wellH}`} fill="#4a5568" />
       </>
     )
   }
@@ -413,102 +414,89 @@ function WellDiagram({ myValue, className = '' }: { myValue?: number; className?
       style={{ width: '100%', maxWidth: 320, display: 'block', margin: '0 auto' }}
       aria-label="Oil well cross-section"
     >
-      {/* sky */}
-      <rect x={0} y={0} width={W} height={groundY} fill="#f0f4f8" />
+      <defs>
+        <linearGradient id="wdOilGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#2d1200" />
+          <stop offset="45%" stopColor="#100500" />
+          <stop offset="100%" stopColor="#050100" />
+        </linearGradient>
+        <clipPath id="wdLeftClip">
+          <rect x={0} y={0} width={cx} height={H} />
+        </clipPath>
+        <clipPath id="wdRightClip">
+          <rect x={cx} y={0} width={W - cx} height={H} />
+        </clipPath>
+      </defs>
 
-      {/* two derricks */}
+      {/* ── Sky ── */}
+      <rect x={0} y={0} width={W} height={groundY} fill="#e8eef5" />
+
+      {/* ── Derricks (above ground, rendered before rock so they sit on top) ── */}
       <Derrick centerX={leftCx} />
       <Derrick centerX={rightCx} />
 
-      <defs>
-        <linearGradient id="oilGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#2a1000" />
-          <stop offset="50%" stopColor="#0f0400" />
-          <stop offset="100%" stopColor="#060100" />
-        </linearGradient>
-        <linearGradient id="rockGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#ddd0b0" />
-          <stop offset="100%" stopColor="#c8b888" />
-        </linearGradient>
-        <linearGradient id="unknownGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#d8c8a0" />
-          <stop offset="100%" stopColor="#c0b080" />
-        </linearGradient>
-      </defs>
+      {/* ── Geological strata ── drawn tallest-first so shallower layers sit on top */}
+      {/* Deep shale / reservoir rock */}
+      <path d={`${top} L 280,${groundY + 72} Q 210,${groundY + 76} 140,${groundY + 69} Q 70,${groundY + 66} 0,${groundY + 72} Z`} fill="#7a6858" />
+      {/* Limestone */}
+      <path d={`${top} L 280,${groundY + 33} Q 210,${groundY + 37} 140,${groundY + 31} Q 70,${groundY + 29} 0,${groundY + 34} Z`} fill="#9e9080" />
+      {/* Topsoil */}
+      <path d={`${top} L 280,${groundY + 18} Q 210,${groundY + 16} 140,${groundY + 19} Q 70,${groundY + 22} 0,${groundY + 18} Z`} fill="#b89a68" />
 
-      {/* ground */}
-      <rect x={0} y={groundY} width={W} height={6} fill="#c8b89a" />
-      <rect x={0} y={groundY + 6} width={W} height={wellH + 12} fill="#d4c4a8" />
+      {/* Ground surface line */}
       <line x1={0} y1={groundY} x2={W} y2={groundY} stroke="#a08060" strokeWidth={1.5} />
-      <text x={8} y={groundY - 10} fontSize={8} fill="#718096" fontFamily="inherit" letterSpacing="0.5">
-        GROUND
-      </text>
+      <text x={7} y={groundY - 10} fontSize={8} fill="#8a7a6a" fontFamily="inherit" letterSpacing="0.5">GROUND</text>
 
-      {/* left half — your half */}
-      {revealed && myValue === 3 ? (
-        <>
-          <rect x={wellX} y={groundY} width={wellW / 2 - 1} height={wellH}
-            fill="url(#oilGrad)" stroke="#5a3010" strokeWidth={1} />
-          {/* wavy oil surface */}
-          <path
-            d={`M ${wellX},${groundY + 7} Q ${wellX + (wellW / 2 - 1) * 0.25},${groundY + 3} ${wellX + (wellW / 2 - 1) * 0.5},${groundY + 7} Q ${wellX + (wellW / 2 - 1) * 0.75},${groundY + 11} ${cx - 1},${groundY + 7}`}
-            fill="none" stroke="#5a2800" strokeWidth={1.5}
-          />
-          {/* sheen highlight */}
-          <rect x={wellX + 5} y={groundY + 14} width={5} height={wellH - 22} fill="#4d2000" fillOpacity={0.35} rx={3} />
-        </>
-      ) : (
-        <>
-          <rect x={wellX} y={groundY} width={wellW / 2 - 1} height={wellH}
-            fill={revealed ? 'url(#rockGrad)' : 'url(#unknownGrad)'} stroke="#8a7050" strokeWidth={1} />
-          {[0.28, 0.52, 0.74].map((f, i) => (
-            <line key={i} x1={wellX + 3} y1={groundY + wellH * f} x2={cx - 3} y2={groundY + wellH * f}
-              stroke="#a09070" strokeWidth={0.75} strokeOpacity={0.55} />
-          ))}
-        </>
-      )}
-      {/* right half — opponent's half (always unknown) */}
-      <rect x={cx + 1} y={groundY} width={wellW / 2 - 1} height={wellH}
-        fill="url(#unknownGrad)" stroke="#8a7050" strokeWidth={1} />
-      {[0.28, 0.52, 0.74].map((f, i) => (
-        <line key={i} x1={cx + 4} y1={groundY + wellH * f} x2={cx + wellW / 2} y2={groundY + wellH * f}
-          stroke="#a09070" strokeWidth={0.75} strokeOpacity={0.55} />
+      {/* ── Steel well casings ── */}
+      {[leftCx, rightCx].map((cx2) => (
+        <g key={cx2}>
+          <rect x={cx2 - casingW / 2} y={groundY} width={casingW} height={casingBottom - groundY}
+            fill="#8a8a8a" stroke="#606060" strokeWidth={0.75} rx={2} />
+          {/* inner pipe highlight */}
+          <rect x={cx2 - casingW / 2 + 2} y={groundY + 2} width={casingW - 4} height={casingBottom - groundY - 4}
+            fill="#c4c4c4" rx={1} />
+          {/* drill bit */}
+          <polygon points={`${cx2},${casingBottom + 7} ${cx2 - 4},${casingBottom} ${cx2 + 4},${casingBottom}`} fill="#555" />
+        </g>
       ))}
 
-      {/* center divider */}
-      <line x1={cx} y1={groundY} x2={cx} y2={groundY + wellH} stroke="#8a7050" strokeWidth={2} strokeDasharray="4 3" />
+      {/* ── Reservoir (organic ellipse, split by clipPaths) ── */}
+      {/* Your half */}
+      <ellipse cx={cx} cy={resCy} rx={resRx} ry={resRy}
+        fill={revealed && myValue === 3 ? 'url(#wdOilGrad)' : '#c8b880'}
+        clipPath="url(#wdLeftClip)" />
+      {/* Wavy oil surface when you have oil */}
+      {revealed && myValue === 3 && (
+        <path
+          d={`M ${cx - resRx + 14},${resCy - 14} Q ${cx - resRx * 0.55},${resCy - 18} ${cx},${resCy - 14}`}
+          fill="none" stroke="#5a2800" strokeWidth={1.5} clipPath="url(#wdLeftClip)"
+        />
+      )}
+      {/* Opponent's half */}
+      <ellipse cx={cx} cy={resCy} rx={resRx} ry={resRy}
+        fill="#c0b070"
+        clipPath="url(#wdRightClip)" />
+      {/* Reservoir outline */}
+      <ellipse cx={cx} cy={resCy} rx={resRx} ry={resRy} fill="none" stroke="#8a7050" strokeWidth={1.5} />
+      {/* Dividing line */}
+      <line x1={cx} y1={resCy - resRy} x2={cx} y2={resCy + resRy} stroke="#8a7050" strokeWidth={1.5} strokeDasharray="3 2" />
 
-      {/* left label */}
-      <text
-        x={leftCx} y={groundY + wellH / 2 - 8}
-        textAnchor="middle" fontSize={22} fontWeight="700"
-        fill={revealed && myValue === 3 ? '#ffffff' : '#003660'}
-        fontFamily="Georgia, serif"
-      >
+      {/* ── Labels inside reservoir ── */}
+      <text x={leftCx} y={resCy - 2} textAnchor="middle" fontSize={17} fontWeight="700"
+        fill={revealed && myValue === 3 ? '#f5e8d0' : '#4a3818'} fontFamily="Georgia, serif">
         {leftLabel}
       </text>
-      <text
-        x={leftCx} y={groundY + wellH / 2 + 10}
-        textAnchor="middle" fontSize={9}
-        fill={revealed && myValue === 3 ? '#c8d8e8' : '#6b5a45'}
-        fontFamily="inherit" letterSpacing="0.5"
-      >
+      <text x={leftCx} y={resCy + 14} textAnchor="middle" fontSize={6.5}
+        fill={revealed && myValue === 3 ? '#b0c8d8' : '#6b5a45'} fontFamily="inherit" letterSpacing="0.5">
         YOUR HALF
       </text>
 
-      {/* right label */}
-      <text
-        x={rightCx} y={groundY + wellH / 2 - 8}
-        textAnchor="middle" fontSize={22} fontWeight="700" fill="#8a7050"
-        fontFamily="Georgia, serif"
-      >
+      <text x={rightCx} y={resCy - 2} textAnchor="middle" fontSize={17} fontWeight="700"
+        fill="#7a6030" fontFamily="Georgia, serif">
         ?
       </text>
-      <text
-        x={rightCx} y={groundY + wellH / 2 + 10}
-        textAnchor="middle" fontSize={9} fill="#6b5a45"
-        fontFamily="inherit" letterSpacing="0.5"
-      >
+      <text x={rightCx} y={resCy + 14} textAnchor="middle" fontSize={6.5}
+        fill="#6b5a45" fontFamily="inherit" letterSpacing="0.5">
         OPPONENT&apos;S HALF
       </text>
     </svg>
