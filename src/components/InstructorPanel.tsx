@@ -232,7 +232,7 @@ export default function InstructorPanel({ userEmail }: Props) {
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
       {/* Header */}
       <header
-        className="border-b px-6 py-3 flex items-center justify-between"
+        className="border-b px-4 sm:px-6 py-3 flex items-center justify-between gap-3"
         style={{ borderColor: 'var(--border)' }}
       >
         <div>
@@ -244,7 +244,7 @@ export default function InstructorPanel({ userEmail }: Props) {
           </h1>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          <span className="text-xs hidden sm:block truncate max-w-[200px]" style={{ color: 'var(--text-muted)' }}>
             {userEmail}
           </span>
           <button
@@ -256,14 +256,14 @@ export default function InstructorPanel({ userEmail }: Props) {
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Tab switcher */}
-        <div className="flex gap-2 mb-8 border-b" style={{ borderColor: 'var(--border)' }}>
+        <div className="flex gap-1 mb-8 border-b overflow-x-auto" style={{ borderColor: 'var(--border)' }}>
           {(['auctions', 'assignment2', 'experiment3', 'experiment4'] as TabKey[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className="text-xs tracking-widest uppercase px-4 py-2.5 -mb-px transition-all"
+              className="text-xs tracking-widest uppercase px-3 sm:px-4 py-2.5 -mb-px transition-all whitespace-nowrap flex-shrink-0"
               style={{
                 color: activeTab === tab ? 'var(--navy)' : 'var(--text-muted)',
                 borderBottom: activeTab === tab ? '2px solid var(--navy)' : '2px solid transparent',
@@ -982,7 +982,7 @@ function Experiment3Charts({
         <p className="text-xs tracking-widest uppercase mb-3" style={{ color: 'var(--text-muted)' }}>
           Charts (per-round class averages)
         </p>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {charts.map((chart) => (
             <div
               key={chart.title}
@@ -1251,7 +1251,7 @@ function Experiment3View({
       </div>
 
       <div
-        className="grid grid-cols-6 gap-4 rounded-xl p-4 mb-6"
+        className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 rounded-xl p-4 mb-6"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
       >
         <Stat label="Total Rows" value={allRows.length} />
@@ -1583,6 +1583,261 @@ function RiskAversionView({
   )
 }
 
+// ── Experiment 4 charts ──────────────────────────────────────────────────────
+
+function filterExp4Outliers(data: { id: string; x: number; y: number }[]) {
+  if (data.length < 4) return data
+  const fence = (vals: number[]) => {
+    const s = [...vals].sort((a, b) => a - b)
+    const q1 = s[Math.floor(s.length * 0.25)]
+    const q3 = s[Math.floor(s.length * 0.75)]
+    const iqr = q3 - q1
+    return { lo: q1 - 1.5 * iqr, hi: q3 + 1.5 * iqr }
+  }
+  const { lo: xLo, hi: xHi } = fence(data.map((d) => d.x))
+  const { lo: yLo, hi: yHi } = fence(data.map((d) => d.y))
+  return data.filter((d) => d.x >= xLo && d.x <= xHi && d.y >= yLo && d.y <= yHi)
+}
+
+function Exp4ScatterChart({ data }: { data: { x: number; y: number; id: string }[] }) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
+
+  const W = 320; const H = 260
+  const PAD = { top: 20, right: 16, bottom: 40, left: 52 }
+  const innerW = W - PAD.left - PAD.right
+  const innerH = H - PAD.top - PAD.bottom
+
+  if (data.length === 0) {
+    return (
+      <div className="flex items-center justify-center rounded-lg"
+        style={{ height: `${H}px`, background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>No data yet</span>
+      </div>
+    )
+  }
+
+  const maxVal = Math.max(...data.map((d) => Math.max(d.x, d.y))) * 1.08 || 100
+  const sx = (v: number) => PAD.left + (v / maxVal) * innerW
+  const sy = (v: number) => PAD.top + (1 - v / maxVal) * innerH
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const svg = svgRef.current
+    if (!svg) return
+    const rect = svg.getBoundingClientRect()
+    const mx = ((e.clientX - rect.left) / rect.width) * W
+    const my = ((e.clientY - rect.top) / rect.height) * H
+    let best = 0, bestDist = Infinity
+    data.forEach((d, i) => {
+      const dist = Math.hypot(sx(d.x) - mx, sy(d.y) - my)
+      if (dist < bestDist) { bestDist = dist; best = i }
+    })
+    setHoveredIdx(best)
+  }
+
+  const ticks = Array.from({ length: 5 }, (_, i) => (i / 4) * maxVal)
+  const hov = hoveredIdx != null ? data[hoveredIdx] : null
+  const TW = 96; const TH = 44
+  const tooltipX = hov ? Math.min(Math.max(sx(hov.x) - TW / 2, PAD.left), PAD.left + innerW - TW) : 0
+  const tooltipY = hov ? (sy(hov.y) - TH - 8 < PAD.top ? sy(hov.y) + 8 : sy(hov.y) - TH - 8) : 0
+
+  return (
+    <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="w-full"
+      style={{ display: 'block', cursor: 'crosshair' }}
+      onMouseMove={handleMouseMove} onMouseLeave={() => setHoveredIdx(null)}>
+      {/* Grid */}
+      {ticks.map((v, i) => (
+        <g key={i}>
+          <line x1={PAD.left} y1={sy(v)} x2={PAD.left + innerW} y2={sy(v)} stroke="var(--border)" strokeWidth={1} />
+          <line x1={sx(v)} y1={PAD.top} x2={sx(v)} y2={PAD.top + innerH} stroke="var(--border)" strokeWidth={1} />
+        </g>
+      ))}
+      {/* Y tick labels */}
+      {ticks.map((v, i) => (
+        <text key={i} x={PAD.left - 5} y={sy(v) + 4} textAnchor="end" fontSize={9} fill="var(--text-muted)">
+          {v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v.toFixed(0)}
+        </text>
+      ))}
+      {/* X tick labels */}
+      {ticks.map((v, i) => (
+        <text key={i} x={sx(v)} y={H - PAD.bottom + 14} textAnchor="middle" fontSize={9} fill="var(--text-muted)">
+          {v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v.toFixed(0)}
+        </text>
+      ))}
+      {/* 45° reference: bid = estimate */}
+      <line x1={sx(0)} y1={sy(0)} x2={sx(maxVal * 0.96)} y2={sy(maxVal * 0.96)}
+        stroke="var(--gold)" strokeWidth={1.5} strokeDasharray="4 3" />
+      <text x={sx(maxVal * 0.96) + 2} y={sy(maxVal * 0.96) - 4} fontSize={8} fill="var(--gold)" fontWeight={600}>
+        bid=est
+      </text>
+      {/* Hover crosshair */}
+      {hov && (
+        <line x1={sx(hov.x)} y1={PAD.top} x2={sx(hov.x)} y2={PAD.top + innerH}
+          stroke="var(--navy)" strokeWidth={1} strokeOpacity={0.2} strokeDasharray="3 2" />
+      )}
+      {/* Dots */}
+      {data.map((d, i) => (
+        <circle key={i} cx={sx(d.x)} cy={sy(d.y)}
+          r={hoveredIdx === i ? 5 : 3}
+          fill={hoveredIdx === i ? '#fff' : 'var(--navy)'}
+          stroke="var(--navy)"
+          strokeWidth={hoveredIdx === i ? 2 : 0}
+          opacity={hoveredIdx === i ? 1 : 0.65}
+        />
+      ))}
+      {/* Axis labels */}
+      <text x={10} y={H / 2} textAnchor="middle" fontSize={9} fill="var(--text-muted)"
+        transform={`rotate(-90, 10, ${H / 2})`}>
+        Bid ($)
+      </text>
+      <text x={PAD.left + innerW / 2} y={H - 2} textAnchor="middle" fontSize={9} fill="var(--text-muted)">
+        Estimate ($)
+      </text>
+      {/* Tooltip */}
+      {hov && (
+        <g>
+          <rect x={tooltipX} y={tooltipY} width={TW} height={TH} rx={4} fill="var(--navy)" opacity={0.93} />
+          <text x={tooltipX + TW / 2} y={tooltipY + 12} textAnchor="middle" fontSize={7.5} fill="rgba(255,255,255,0.6)">
+            {hov.id}
+          </text>
+          <text x={tooltipX + TW / 2} y={tooltipY + 23} textAnchor="middle" fontSize={8} fill="rgba(255,255,255,0.8)">
+            est: {hov.x.toLocaleString()}  bid: ${hov.y.toFixed(0)}
+          </text>
+          <text x={tooltipX + TW / 2} y={tooltipY + 36} textAnchor="middle" fontSize={9.5} fontWeight={600} fill="#fff">
+            ratio: {hov.x > 0 ? (hov.y / hov.x).toFixed(3) : '—'}
+          </text>
+        </g>
+      )}
+    </svg>
+  )
+}
+
+const EXP4_TABS = [
+  { key: 'bid_2' as const, label: '2 Bidders' },
+  { key: 'bid_10' as const, label: '10 Bidders' },
+  { key: 'bid_100' as const, label: '100 Bidders' },
+]
+
+function Experiment4Charts({ rows }: { rows: Experiment4Response[] }) {
+  const [activeTab, setActiveTab] = useState<'bid_2' | 'bid_10' | 'bid_100'>('bid_2')
+  const [noOutliers, setNoOutliers] = useState(false)
+  const [fullscreen, setFullscreen] = useState(false)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFullscreen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  if (rows.length === 0) return null
+
+  const rawData = rows.map((r) => ({ id: r.student_id, x: Number(r.estimate), y: Number(r[activeTab]) }))
+  const data = noOutliers ? filterExp4Outliers(rawData) : rawData
+  const hiddenCount = rawData.length - data.length
+
+  const chartBody = (
+    <>
+      <div className="flex gap-1 mb-3">
+        {EXP4_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className="text-xs px-3 py-1.5 rounded transition-all"
+            style={{
+              background: activeTab === tab.key ? 'var(--navy)' : 'var(--surface2)',
+              color: activeTab === tab.key ? '#fff' : 'var(--text-muted)',
+              border: `1px solid ${activeTab === tab.key ? 'var(--navy)' : 'var(--border)'}`,
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      <Exp4ScatterChart data={data} />
+    </>
+  )
+
+  const headerActions = (
+    <div className="flex items-center gap-1">
+      <button
+        onClick={() => setNoOutliers((v) => !v)}
+        className="rounded transition-colors"
+        style={{
+          color: noOutliers ? 'var(--navy)' : 'var(--text-muted)',
+          padding: '2px 6px',
+          fontSize: '10px',
+          lineHeight: 1.4,
+          background: 'transparent',
+          border: `1px solid ${noOutliers ? 'var(--navy)' : 'var(--border)'}`,
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--navy)'; e.currentTarget.style.color = 'var(--navy)' }}
+        onMouseLeave={(e) => {
+          if (!noOutliers) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' }
+        }}
+      >
+        {noOutliers ? `Outliers hidden (${hiddenCount})` : 'Remove outliers'}
+      </button>
+      <button
+        onClick={() => setFullscreen(true)}
+        title="Fullscreen"
+        className="rounded transition-colors"
+        style={{ color: 'var(--text-muted)', padding: '2px 4px', fontSize: '11px', lineHeight: 1, background: 'transparent', border: '1px solid transparent' }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--navy)' }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)' }}
+      >
+        ⛶
+      </button>
+    </div>
+  )
+
+  return (
+    <div className="mb-6">
+      <p className="text-xs tracking-widest uppercase mb-3" style={{ color: 'var(--text-muted)' }}>
+        Charts
+      </p>
+      <div className="rounded-xl p-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-medium" style={{ color: 'var(--text)' }}>Estimate vs Bid</p>
+          {headerActions}
+        </div>
+        {chartBody}
+      </div>
+
+      {fullscreen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.55)' }}
+          onClick={() => setFullscreen(false)}
+        >
+          <div
+            className="rounded-2xl p-6"
+            style={{ background: '#fff', width: '90vw', maxWidth: '1100px', border: '1px solid var(--border)', boxShadow: '0 25px 60px rgba(0,0,0,0.25)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm font-semibold" style={{ color: 'var(--navy)' }}>Estimate vs Bid</p>
+              <div className="flex items-center gap-2">
+                {headerActions}
+                <button
+                  onClick={() => setFullscreen(false)}
+                  className="text-xs px-3 py-1 rounded"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+                >
+                  ✕ Close
+                </button>
+              </div>
+            </div>
+            {chartBody}
+            <p className="text-xs mt-3 text-center" style={{ color: 'var(--text-muted)' }}>
+              Press Esc or click outside to close
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Experiment 4 instructor view ─────────────────────────────────────────────
 
 function Experiment4View({
@@ -1623,7 +1878,7 @@ function Experiment4View({
   return (
     <div>
       <div
-        className="grid grid-cols-5 gap-4 rounded-xl p-4 mb-6"
+        className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 rounded-xl p-4 mb-6"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
       >
         <Stat label="Submissions" value={rows.length} />
@@ -1632,6 +1887,8 @@ function Experiment4View({
         <Stat label="Avg Bid · 10 Bidders" value={avgBid10 != null ? `$${fmt(avgBid10)}` : '—'} />
         <Stat label="Avg Bid · 100 Bidders" value={avgBid100 != null ? `$${fmt(avgBid100)}` : '—'} />
       </div>
+
+      <Experiment4Charts rows={rows} />
 
       <div className="flex gap-2 justify-end mb-4">
         <button onClick={onRefresh} className="btn-ghost text-xs px-3 py-1.5 rounded" disabled={loading}>

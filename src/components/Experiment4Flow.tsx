@@ -120,7 +120,7 @@ export default function Experiment4Flow() {
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg)' }}>
 
       <header
-        className="border-b px-6 py-3 grid grid-cols-[1fr_auto_1fr] items-center gap-4"
+        className="border-b px-4 sm:px-6 py-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4"
         style={{ borderColor: 'var(--border)' }}
       >
         <div className="justify-self-start">
@@ -168,7 +168,6 @@ export default function Experiment4Flow() {
                 value={studentId}
                 onChange={(e) => { setStudentId(e.target.value); setError('') }}
                 onKeyDown={(e) => e.key === 'Enter' && handleIdentify()}
-                autoFocus
               />
               {error && <p className="text-xs mb-4" style={{ color: '#dc2626' }}>{error}</p>}
               <button
@@ -217,7 +216,6 @@ export default function Experiment4Flow() {
                 value={estimate}
                 onChange={(e) => { setEstimate(e.target.value); setInputError('') }}
                 onKeyDown={(e) => e.key === 'Enter' && handleQ1()}
-                autoFocus
               />
               {inputError && <p className="text-xs mb-2" style={{ color: '#dc2626' }}>{inputError}</p>}
               <div className="flex gap-3 mt-2">
@@ -245,9 +243,9 @@ export default function Experiment4Flow() {
               <ContextBar estimate={estimate} />
 
               <p className="text-sm mb-6" style={{ color: 'var(--text)', lineHeight: 1.7 }}>
-                You are bidding in a <strong>first-price sealed-bid auction</strong> against{' '}
-                <strong>1 other bidder</strong>. Everyone submits one private bid; the highest
-                bidder wins and pays their own bid. How much would you bid for the jar?
+                You are one of <strong>2 bidders</strong> in a <strong>first-price sealed-bid
+                auction</strong>. Everyone submits one private bid; the highest bidder wins and pays
+                their own bid. How much would you bid for the jar?
               </p>
               <input
                 type="number"
@@ -258,7 +256,6 @@ export default function Experiment4Flow() {
                 value={bid2}
                 onChange={(e) => { setBid2(e.target.value); setInputError('') }}
                 onKeyDown={(e) => e.key === 'Enter' && handleQ2()}
-                autoFocus
               />
               {inputError && <p className="text-xs mb-2" style={{ color: '#dc2626' }}>{inputError}</p>}
               <div className="flex gap-3 mt-2">
@@ -286,8 +283,8 @@ export default function Experiment4Flow() {
               <ContextBar estimate={estimate} bid2={bid2} />
 
               <p className="text-sm mb-6" style={{ color: 'var(--text)', lineHeight: 1.7 }}>
-                Same first-price sealed-bid auction, but now against{' '}
-                <strong>9 other bidders</strong>. How much would you bid for the jar?
+                Same first-price sealed-bid auction, but now with{' '}
+                <strong>10 bidders</strong> total. How much would you bid for the jar?
               </p>
               <input
                 type="number"
@@ -298,7 +295,6 @@ export default function Experiment4Flow() {
                 value={bid10}
                 onChange={(e) => { setBid10(e.target.value); setInputError('') }}
                 onKeyDown={(e) => e.key === 'Enter' && handleQ3()}
-                autoFocus
               />
               {inputError && <p className="text-xs mb-2" style={{ color: '#dc2626' }}>{inputError}</p>}
               <div className="flex gap-3 mt-2">
@@ -326,8 +322,8 @@ export default function Experiment4Flow() {
               <ContextBar estimate={estimate} bid2={bid2} bid10={bid10} />
 
               <p className="text-sm mb-6" style={{ color: 'var(--text)', lineHeight: 1.7 }}>
-                Same first-price sealed-bid auction, but now against{' '}
-                <strong>99 other bidders</strong>. How much would you bid for the jar?
+                Same first-price sealed-bid auction, but now with{' '}
+                <strong>100 bidders</strong> total. How much would you bid for the jar?
               </p>
               <input
                 type="number"
@@ -338,7 +334,6 @@ export default function Experiment4Flow() {
                 value={bid100}
                 onChange={(e) => { setBid100(e.target.value); setInputError('') }}
                 onKeyDown={(e) => e.key === 'Enter' && handleQ4()}
-                autoFocus
               />
               {inputError && <p className="text-xs mb-2" style={{ color: '#dc2626' }}>{inputError}</p>}
               <div className="flex gap-3 mt-2">
@@ -405,7 +400,7 @@ function ContextBar({
 }) {
   const items: { label: string; value: string }[] = []
   if (estimate) items.push({ label: 'Estimate', value: `${parseFloat(estimate).toLocaleString()} kernels` })
-  if (bid2) items.push({ label: 'Bid (1 bidder)', value: `$${parseFloat(bid2).toLocaleString()}` })
+  if (bid2) items.push({ label: 'Bid (2 bidders)', value: `$${parseFloat(bid2).toLocaleString()}` })
   if (bid10) items.push({ label: 'Bid (10 bidders)', value: `$${parseFloat(bid10).toLocaleString()}` })
   if (items.length === 0) return null
   return (
@@ -431,7 +426,7 @@ function ContextBar({
 const STEPS: { key: Panel; label: string }[] = [
   { key: 'identify', label: 'Identify' },
   { key: 'q1', label: 'Estimate' },
-  { key: 'q2', label: '1 Bidder' },
+  { key: 'q2', label: '2 Bidders' },
   { key: 'q3', label: '10 Bidders' },
   { key: 'q4', label: '100 Bidders' },
 ]
