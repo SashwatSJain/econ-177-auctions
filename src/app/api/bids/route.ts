@@ -56,6 +56,35 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(data, { status: 201 })
 }
 
+// DELETE /api/bids?id=<uuid> — delete a single bid
+// DELETE /api/bids?student_id=<id>&auction_type=<type> — delete all bids by a student in an auction
+export async function DELETE(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const id = searchParams.get('id')
+  const studentId = searchParams.get('student_id')
+  const auctionType = searchParams.get('auction_type')
+
+  const supabase = await createServerSupabaseClient()
+
+  if (id) {
+    const { error } = await supabase.from('bids').delete().eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ deleted: 1 })
+  }
+
+  if (studentId && auctionType) {
+    const { error, count } = await supabase
+      .from('bids')
+      .delete({ count: 'exact' })
+      .eq('student_id', studentId.toLowerCase())
+      .eq('auction_type', auctionType)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ deleted: count ?? 0 })
+  }
+
+  return NextResponse.json({ error: 'Provide id or student_id+auction_type' }, { status: 400 })
+}
+
 // GET /api/bids?auction_type=... — requires auth (enforced by RLS)
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)

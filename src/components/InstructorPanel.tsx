@@ -25,6 +25,12 @@ function estimateAlpha(row: RiskAversionResponse): number | null {
   return sumX2 > 0 ? sumXY / sumX2 : null
 }
 
+// ── Seller revenue (Experiment 1) ────────────────────────────────────────────
+
+function computeRoundRevenue(roundBids: Bid[]): number {
+  return roundBids.reduce((sum, b) => sum + Number(b.amount), 0)
+}
+
 // ── Experiment 3 treatment pairing ──────────────────────────────────────────
 
 const PAIRED_TREATMENT: Record<string, string> = {
@@ -55,6 +61,12 @@ export default function InstructorPanel({ userEmail }: Props) {
   const [experiment4Rows, setExperiment4Rows] = useState<Experiment4Response[]>([])
   const [betaCVRows, setBetaCVRows] = useState<BetaCVEntry[]>([])
   const [loading, setLoading] = useState(false)
+  const [sortCol, setSortCol] = useState<'student_id' | 'round' | 'private_value' | 'amount' | 'ratio' | 'created_at'>('created_at')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  // confirmDelete holds either { type: 'bid', id: string } or { type: 'student', studentId: string }
+  const [confirmDelete, setConfirmDelete] = useState<
+    { type: 'bid'; id: string } | { type: 'student'; studentId: string } | null
+  >(null)
 
   // Cache rows per treatment key so we can load paired treatments without refetching
   const experiment3CacheRef = useRef<Record<string, Experiment3Round[]>>({})
@@ -76,6 +88,21 @@ export default function InstructorPanel({ userEmail }: Props) {
     } finally {
       setLoading(false)
     }
+  }, [selectedAuction])
+
+  const confirmAndDeleteBid = useCallback(async (id: string) => {
+    await fetch(`/api/bids?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+    setBids((prev) => prev.filter((b) => b.id !== id))
+    setConfirmDelete(null)
+  }, [])
+
+  const confirmAndDeleteStudentBids = useCallback(async (studentId: string) => {
+    await fetch(
+      `/api/bids?student_id=${encodeURIComponent(studentId)}&auction_type=${encodeURIComponent(selectedAuction)}`,
+      { method: 'DELETE' }
+    )
+    setBids((prev) => prev.filter((b) => b.student_id !== studentId))
+    setConfirmDelete(null)
   }, [selectedAuction])
 
   const fetchRaRows = useCallback(async () => {
@@ -136,6 +163,28 @@ export default function InstructorPanel({ userEmail }: Props) {
   const roundsWithData = Array.from(new Set(bids.map((b) => b.round))).sort((a, b) => a - b)
   const filtered = selectedRound === 'all' ? bids : bids.filter((b) => b.round === selectedRound)
 
+  const handleSortCol = (col: typeof sortCol) => {
+    if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortCol(col); setSortDir('asc') }
+  }
+
+  const sortedFiltered = [...filtered].sort((a, b) => {
+    let av: number | string, bv: number | string
+    if (sortCol === 'ratio') {
+      av = Number(a.private_value) > 0 ? Number(a.amount) / Number(a.private_value) : 0
+      bv = Number(b.private_value) > 0 ? Number(b.amount) / Number(b.private_value) : 0
+    } else if (sortCol === 'student_id') {
+      av = a.student_id; bv = b.student_id
+    } else if (sortCol === 'created_at') {
+      av = a.created_at; bv = b.created_at
+    } else {
+      av = Number(a[sortCol]); bv = Number(b[sortCol])
+    }
+    if (av < bv) return sortDir === 'asc' ? -1 : 1
+    if (av > bv) return sortDir === 'asc' ? 1 : -1
+    return 0
+  })
+
   const winnerMap: Record<number, number> = {}
   for (const r of roundsWithData) {
     const roundBids = bids.filter((b) => b.round === r)
@@ -148,6 +197,12 @@ export default function InstructorPanel({ userEmail }: Props) {
     winnerMap[bid.round] !== undefined && bid.amount === winnerMap[bid.round]
 
   const currentConfig = AUCTION_CONFIGS.find((a) => a.key === selectedAuction)!
+
+  const totalRevenue = roundsWithData.reduce(
+    (sum, r) => sum + computeRoundRevenue(bids.filter((b) => b.round === r)),
+    0
+  )
+  const avgRevenuePerRound = roundsWithData.length > 0 ? totalRevenue / roundsWithData.length : 0
   const experiment3RoundsWithData = Array.from(
     new Set(experiment3Rows.map((row) => row.round_in_treatment))
   ).sort((a, b) => a - b)
@@ -358,15 +413,16 @@ export default function InstructorPanel({ userEmail }: Props) {
 
         {/* Stats bar */}
         <div
-          className="grid grid-cols-3 gap-4 rounded-xl p-4 mb-6"
+          className="grid grid-cols-4 gap-4 rounded-xl p-4 mb-6"
           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
         >
           <Stat label="Total Bids" value={bids.length} />
           <Stat label="Unique Students" value={new Set(bids.map((b) => b.student_id)).size} />
           <Stat label="Rounds Active" value={roundsWithData.length} />
+          <Stat label="Avg Rev / Round" value={`$${avgRevenuePerRound.toFixed(2)}`} />
         </div>
 
-        {/* Nash equilibrium note */}
+        {/* Nash equilibrium + revenue note */}
         <div
           className="rounded-lg px-4 py-3 mb-6 text-xs"
           style={{
@@ -377,6 +433,9 @@ export default function InstructorPanel({ userEmail }: Props) {
         >
           <span style={{ color: 'var(--navy)', fontWeight: 500 }}>Nash Equilibrium: </span>
           {currentConfig.nashDescription}
+          <span className="mx-3" style={{ color: 'rgba(0,54,96,0.25)' }}>|</span>
+          <span style={{ color: 'var(--navy)', fontWeight: 500 }}>Seller Revenue: </span>
+          {currentConfig.revenueDescription}
         </div>
 
         {/* Round filter + actions */}
@@ -444,27 +503,43 @@ export default function InstructorPanel({ userEmail }: Props) {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-                  {['#', 'Student ID', 'Round', 'Private Value', 'Bid Amount', 'Bid/Value', 'Time'].map(
-                    (h) => (
-                      <th
-                        key={h}
-                        className="text-left px-4 py-3 text-xs tracking-wide font-medium"
-                        style={{ color: 'var(--text-muted)' }}
-                      >
-                        {h}
-                      </th>
-                    )
-                  )}
+                  {(
+                    [
+                      { label: '#', col: null },
+                      { label: 'Student ID', col: 'student_id' },
+                      { label: 'Round', col: 'round' },
+                      { label: 'Private Value', col: 'private_value' },
+                      { label: 'Bid Amount', col: 'amount' },
+                      { label: 'Bid/Value', col: 'ratio' },
+                      { label: 'Time', col: 'created_at' },
+                      { label: '', col: null },
+                    ] as { label: string; col: typeof sortCol | null }[]
+                  ).map(({ label, col }) => (
+                    <th
+                      key={label}
+                      className="text-left px-4 py-3 text-xs tracking-wide font-medium select-none"
+                      style={{ color: col && sortCol === col ? 'var(--navy)' : 'var(--text-muted)', cursor: col ? 'pointer' : 'default', whiteSpace: 'nowrap' }}
+                      onClick={() => col && handleSortCol(col)}
+                    >
+                      {label}
+                      {col && sortCol === col && (
+                        <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                      )}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((bid, i) => {
+                {sortedFiltered.map((bid, i) => {
                   const winner = isWinner(bid)
+                  const isSilly = Number(bid.amount) > Number(bid.private_value)
                   return (
                     <tr
                       key={bid.id}
                       style={{
-                        background: winner
+                        background: isSilly
+                          ? 'rgba(251,191,36,0.12)'
+                          : winner
                           ? 'rgba(0,54,96,0.04)'
                           : i % 2 === 0
                           ? '#fff'
@@ -475,10 +550,7 @@ export default function InstructorPanel({ userEmail }: Props) {
                       <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                         {i + 1}
                       </td>
-                      <td
-                        className="px-4 py-2.5 text-xs"
-                        style={{ color: winner ? 'var(--navy)' : 'var(--text)', fontWeight: winner ? 500 : 400 }}
-                      >
+                      <td className="px-4 py-2.5 text-xs" style={{ color: winner ? 'var(--navy)' : 'var(--text)', fontWeight: winner ? 500 : 400 }}>
                         {bid.student_id}
                         {winner && <span className="ml-2 text-[10px]">★</span>}
                       </td>
@@ -501,6 +573,64 @@ export default function InstructorPanel({ userEmail }: Props) {
                       </td>
                       <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                         {new Date(bid.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs">
+                        {confirmDelete?.type === 'bid' && confirmDelete.id === bid.id ? (
+                          <div className="flex gap-1 justify-end items-center">
+                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Delete?</span>
+                            <button
+                              onClick={() => confirmAndDeleteBid(bid.id)}
+                              className="text-[10px] px-2 py-1 rounded"
+                              style={{ background: '#b91c1c', color: '#fff' }}
+                            >
+                              Yes
+                            </button>
+                            <button
+                              onClick={() => setConfirmDelete(null)}
+                              className="text-[10px] px-2 py-1 rounded"
+                              style={{ color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+                            >
+                              No
+                            </button>
+                          </div>
+                        ) : confirmDelete?.type === 'student' && confirmDelete.studentId === bid.student_id ? (
+                          <div className="flex gap-1 justify-end items-center">
+                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Delete all?</span>
+                            <button
+                              onClick={() => confirmAndDeleteStudentBids(bid.student_id)}
+                              className="text-[10px] px-2 py-1 rounded"
+                              style={{ background: '#b91c1c', color: '#fff' }}
+                            >
+                              Yes
+                            </button>
+                            <button
+                              onClick={() => setConfirmDelete(null)}
+                              className="text-[10px] px-2 py-1 rounded"
+                              style={{ color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+                            >
+                              No
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2 justify-end">
+                            <button
+                              onClick={() => setConfirmDelete({ type: 'bid', id: bid.id })}
+                              className="text-[10px] px-2 py-1 rounded transition-all"
+                              style={{ color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+                              title="Delete this bid"
+                            >
+                              ×
+                            </button>
+                            <button
+                              onClick={() => setConfirmDelete({ type: 'student', studentId: bid.student_id })}
+                              className="text-[10px] px-2 py-1 rounded transition-all whitespace-nowrap"
+                              style={{ color: '#b91c1c', border: '1px solid #fecaca' }}
+                              title={`Delete all bids by ${bid.student_id}`}
+                            >
+                              × all
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   )

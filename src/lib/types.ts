@@ -77,6 +77,7 @@ export interface AuctionConfig {
   entryFee: number | null
   reservePrice: number | null
   nashDescription: string
+  revenueDescription: string
   nashSlope: number | null // null = piecewise
   participationThreshold: number | null // private value below which bid = 0
   nashFormula: (v: number) => number
