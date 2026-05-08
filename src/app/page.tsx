@@ -12,7 +12,7 @@ interface CardDef {
   href?: string
 }
 
-type HomeTabKey = 'exp1' | 'exp2' | 'exp3' | 'exp4'
+type HomeTabKey = 'exp1' | 'exp2' | 'exp3' | 'exp4' | 'exp5'
 
 const EXP1_CARDS: CardDef[] = [
   {
@@ -75,64 +75,58 @@ const EXP1_CARDS: CardDef[] = [
 
 const EXP2_CARDS: CardDef[] = [
   {
-    key: 'assignment2',
+    key: 'exp2',
     line1: 'Experiment 2',
     line2: 'Risk Aversion',
     line3: 'CRRA Elicitation',
     description:
       'Enter indifference probabilities between a lottery and certain payments to estimate class risk preferences.',
-    href: '/assignment2',
+    href: '/exp2',
   },
 ]
 
 const EXP3_CARDS: CardDef[] = [
   {
-    key: 'experiment3-2-0',
-    line1: 'Experiment 3.1',
-    line2: '2 Bidders',
-    line3: 'Seller Value 0',
+    key: 'exp3',
+    line1: 'Experiment 3',
+    line2: 'Seller Reserve',
+    line3: 'Auction',
     description:
-      'Seller-side reserve setting with 2 random bidder bids and a seller value of $0.',
-    href: '/experiment3',
-  },
-  {
-    key: 'experiment3-5-0',
-    line1: 'Experiment 3.2',
-    line2: '5 Bidders',
-    line3: 'Seller Value 0',
-    description:
-      'Seller-side reserve setting with 5 random bidder bids and a seller value of $0.',
-    href: '/experiment3',
-  },
-  {
-    key: 'experiment3-2-30',
-    line1: 'Experiment 3.3',
-    line2: '2 Bidders',
-    line3: 'Seller Value 30',
-    description:
-      'Seller-side reserve setting with 2 random bidder bids and a seller value of $30.',
-    href: '/experiment3',
-  },
-  {
-    key: 'experiment3-5-30',
-    line1: 'Experiment 3.4',
-    line2: '5 Bidders',
-    line3: 'Seller Value 30',
-    description:
-      'Seller-side reserve setting with 5 random bidder bids and a seller value of $30.',
-    href: '/experiment3',
+      'Set reserve prices as a seller across four treatment blocks (2 or 5 bidders × seller value $0 or $30). The experiment picks up wherever you left off.',
+    href: '/exp3',
   },
 ]
 
 const EXP4_CARDS: CardDef[] = [
   {
-    key: 'experiment4',
+    key: 'exp4',
     line1: 'Experiment 4',
     line2: 'Jar of Kernels',
     line3: 'Common Value Auction',
     description:
       'Estimate the number of kernels in a jar and submit first-price bids against 1, 9, or 99 other bidders.',
-    href: '/experiment4',
+    href: '/exp4',
+  },
+]
+
+const EXP5_CARDS: CardDef[] = [
+  {
+    key: 'oil-well-integer',
+    line1: 'Experiment 5a',
+    line2: 'Oil Well Auction',
+    line3: 'Integer Bids',
+    description:
+      'Sealed-bid common-value auction. Each firm receives a private half-value ($0 or $3). Bids are whole numbers $0–$6.',
+    href: '/exp5/integer',
+  },
+  {
+    key: 'oil-well-continuous',
+    line1: 'Experiment 5b',
+    line2: 'Oil Well Auction',
+    line3: 'Continuous Bids',
+    description:
+      'Same structure as 5a, but half-values are drawn from a continuous uniform distribution. Any bid $0–$6 is allowed.',
+    href: '/exp5/continuous',
   },
 ]
 
@@ -161,7 +155,7 @@ const HOME_TABS: {
     key: 'exp3',
     label: 'Exp 3',
     title: 'Seller Reserve Auction',
-    description: 'Four seller-side reserve-setting treatment blocks, shown separately below.',
+    description: 'Set reserve prices as a seller. Four treatment blocks — the experiment picks up where you left off.',
     cards: EXP3_CARDS,
   },
   {
@@ -170,6 +164,13 @@ const HOME_TABS: {
     title: 'Jar of Kernels',
     description: 'Common-value auction: estimate the jar, then bid in first-price auctions with increasing competition.',
     cards: EXP4_CARDS,
+  },
+  {
+    key: 'exp5',
+    label: 'Exp 5',
+    title: 'Oil Well Auction',
+    description: 'Common-value auction with private signals. Two variants: integer half-values vs. continuous uniform draws.',
+    cards: EXP5_CARDS,
   },
 ]
 
@@ -265,7 +266,7 @@ export default function HomePage() {
 }
 
 function AuctionCard({ card, fullWidth = false }: { card: CardDef; fullWidth?: boolean }) {
-  const href = card.href ?? `/auction/${card.key}`
+  const href = card.href ?? `/exp1/${card.key}`
   return (
     <Link href={href} className={`block group ${fullWidth ? 'max-w-xl' : ''}`}>
       <div

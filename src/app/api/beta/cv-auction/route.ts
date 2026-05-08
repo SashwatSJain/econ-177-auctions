@@ -1,29 +1,38 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
 
 const SESSION = 'default'
 
-// GET  — instructor: list all entries
-export async function GET() {
+// GET  — instructor: list entries (optionally filter by variant)
+export async function GET(req: NextRequest) {
+  const variant = req.nextUrl.searchParams.get('variant')
   const admin = createAdminSupabaseClient()
-  const { data, error } = await admin
+  let query = admin
     .from('beta_cv_auction')
     .select('*')
     .eq('session_key', SESSION)
     .order('created_at', { ascending: true })
 
+  if (variant === 'integer' || variant === 'continuous') {
+    query = query.eq('variant', variant)
+  }
+
+  const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data ?? [])
 }
 
-// POST — instructor: pair all unpaired bidders
-export async function POST() {
+// POST — instructor: pair all unpaired bidders within a variant
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => ({}))
+  const variant = body?.variant === 'continuous' ? 'continuous' : 'integer'
   const admin = createAdminSupabaseClient()
 
   const { data: unpaired } = await admin
     .from('beta_cv_auction')
     .select('id')
     .eq('session_key', SESSION)
+    .eq('variant', variant)
     .is('pair_id', null)
     .not('bid', 'is', null)
     .order('created_at', { ascending: true })
@@ -41,14 +50,17 @@ export async function POST() {
   return NextResponse.json({ paired, unpaired: pool.length - paired })
 }
 
-// DELETE — instructor: reset session (clear all entries)
-export async function DELETE() {
+// DELETE — instructor: reset session (optionally by variant)
+export async function DELETE(req: NextRequest) {
+  const variant = req.nextUrl.searchParams.get('variant')
   const admin = createAdminSupabaseClient()
-  const { error } = await admin
-    .from('beta_cv_auction')
-    .delete()
-    .eq('session_key', SESSION)
+  let query = admin.from('beta_cv_auction').delete().eq('session_key', SESSION)
 
+  if (variant === 'integer' || variant === 'continuous') {
+    query = query.eq('variant', variant)
+  }
+
+  const { error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

@@ -1,12 +1,5 @@
-import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
 
-import Experiment3Flow from '@/components/Experiment3Flow'
-
-export const metadata: Metadata = {
-  title: 'Experiment 3: Seller Reserve Auction — UCSB Econ 177',
-  description: 'Choose reserve prices as a seller across four auction blocks.',
-}
-
-export default function Experiment3Page() {
-  return <Experiment3Flow />
+export default function Experiment3Redirect() {
+  redirect('/exp3')
 }

@@ -31,6 +31,7 @@ export interface BetaCVEntry {
   id: string
   session_key: string
   student_id: string
+  variant: 'integer' | 'continuous'
   half_value: number
   bid: number | null
   pair_id: string | null

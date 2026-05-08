@@ -3,11 +3,10 @@ import { createAdminSupabaseClient } from '@/lib/supabase-admin'
 
 const SESSION = 'default'
 
-// GET /api/beta/cv-auction/result?student_id=...
-// Returns { status: 'waiting' } until paired + partner has bid.
-// Returns { status: 'ready', own, partner } once results are available.
+// GET /api/beta/cv-auction/result?student_id=...&variant=...
 export async function GET(req: NextRequest) {
   const student_id = req.nextUrl.searchParams.get('student_id')?.trim().toLowerCase()
+  const variant = req.nextUrl.searchParams.get('variant') === 'continuous' ? 'continuous' : 'integer'
   if (!student_id) return NextResponse.json({ error: 'Missing student_id' }, { status: 400 })
 
   const admin = createAdminSupabaseClient()
@@ -17,10 +16,23 @@ export async function GET(req: NextRequest) {
     .select('*')
     .eq('session_key', SESSION)
     .eq('student_id', student_id)
+    .eq('variant', variant)
     .maybeSingle()
 
   if (!own) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  if (!own.pair_id) return NextResponse.json({ status: 'waiting' })
+  if (!own.pair_id) {
+    const { data: anyPaired } = await admin
+      .from('beta_cv_auction')
+      .select('id')
+      .eq('session_key', SESSION)
+      .eq('variant', variant)
+      .not('pair_id', 'is', null)
+      .limit(1)
+      .maybeSingle()
+
+    if (anyPaired) return NextResponse.json({ status: 'unmatched' })
+    return NextResponse.json({ status: 'waiting' })
+  }
 
   const { data: partner } = await admin
     .from('beta_cv_auction')
