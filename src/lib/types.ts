@@ -70,6 +70,17 @@ export interface RiskAversionClassResults {
   alpha_estimate: number | null
 }
 
+export interface AllPayEntry {
+  id: string
+  session_key: string
+  student_id: string
+  num_bidders: number
+  bid: number | null
+  group_id: string | null
+  role: number | null
+  created_at: string
+}
+
 export interface AuctionConfig {
   key: string
   title: string

@@ -12,7 +12,7 @@ interface CardDef {
   href?: string
 }
 
-type HomeTabKey = 'exp1' | 'exp2' | 'exp3' | 'exp4' | 'exp5'
+type HomeTabKey = 'exp1' | 'exp2' | 'exp3' | 'exp4' | 'exp5' | 'exp6'
 
 const EXP1_CARDS: CardDef[] = [
   {
@@ -130,6 +130,36 @@ const EXP5_CARDS: CardDef[] = [
   },
 ]
 
+const EXP6_CARDS: CardDef[] = [
+  {
+    key: 'allpay-2',
+    line1: 'Experiment 6a',
+    line2: 'All-Pay Auction',
+    line3: '2 Bidders',
+    description:
+      'Sealed-bid all-pay auction of a $100 bill. Both bidders pay their bid; the higher bidder wins the $100.',
+    href: '/exp6/2',
+  },
+  {
+    key: 'allpay-5',
+    line1: 'Experiment 6b',
+    line2: 'All-Pay Auction',
+    line3: '5 Bidders',
+    description:
+      'Same all-pay structure with 5 competing bidders. Everyone pays; only the highest bidder receives the $100.',
+    href: '/exp6/5',
+  },
+  {
+    key: 'allpay-10',
+    line1: 'Experiment 6c',
+    line2: 'All-Pay Auction',
+    line3: '10 Bidders',
+    description:
+      'All-pay auction with 10 bidders. More competition drives equilibrium bids down — but overbidding risk remains.',
+    href: '/exp6/10',
+  },
+]
+
 const HOME_TABS: {
   key: HomeTabKey
   label: string
@@ -171,6 +201,13 @@ const HOME_TABS: {
     title: 'Oil Well Auction',
     description: 'Common-value auction with private signals. Two variants: integer half-values vs. continuous uniform draws.',
     cards: EXP5_CARDS,
+  },
+  {
+    key: 'exp6',
+    label: 'Exp 6',
+    title: 'All-Pay Auction',
+    description: 'Sealed-bid all-pay auction of a $100 bill. Everyone pays their bid; only the highest bidder wins the prize. Three group sizes: 2, 5, and 10 bidders.',
+    cards: EXP6_CARDS,
   },
 ]
 
