@@ -145,12 +145,11 @@ export default function Exp1Results() {
       </div>
 
       {/* Stats bar */}
-      <div className="grid grid-cols-4 gap-4 rounded-xl p-4 mb-6"
+      <div className="grid grid-cols-3 gap-4 rounded-xl p-4 mb-6"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
         <Stat label="Total Bids" value={bids.length} />
         <Stat label="Unique Students" value={new Set(bids.map((b) => b.student_id)).size} />
         <Stat label="Rounds Active" value={roundsWithData.length} />
-        <Stat label="Avg Rev / Round" value={`$${avgRevenuePerRound.toFixed(2)}`} />
       </div>
 
       {/* Nash equilibrium + revenue note */}
