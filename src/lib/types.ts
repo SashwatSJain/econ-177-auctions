@@ -81,6 +81,17 @@ export interface AllPayEntry {
   created_at: string
 }
 
+export interface AttendanceRecord {
+  id: string
+  student_id: string
+  latitude: number
+  longitude: number
+  accuracy: number | null
+  code_word: string
+  submitted_at: string
+  created_at: string
+}
+
 export interface AuctionConfig {
   key: string
   title: string
