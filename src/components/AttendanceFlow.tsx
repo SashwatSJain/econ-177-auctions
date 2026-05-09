@@ -62,7 +62,7 @@ export default function AttendanceFlow() {
             : 'Location timed out. Please check your signal and try again.'
         setGps((g) => ({ ...g, status: 'error', errorMsg: msg }))
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
     )
   }, [panel, gps.status])
 
