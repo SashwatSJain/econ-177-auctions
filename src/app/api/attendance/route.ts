@@ -8,8 +8,11 @@ export async function POST(req: NextRequest) {
   if (!student_id || typeof student_id !== 'string') {
     return NextResponse.json({ error: 'Missing student_id' }, { status: 400 })
   }
-  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-    return NextResponse.json({ error: 'Missing or invalid latitude/longitude' }, { status: 400 })
+  if (latitude !== null && latitude !== undefined && typeof latitude !== 'number') {
+    return NextResponse.json({ error: 'Invalid latitude' }, { status: 400 })
+  }
+  if (longitude !== null && longitude !== undefined && typeof longitude !== 'number') {
+    return NextResponse.json({ error: 'Invalid longitude' }, { status: 400 })
   }
   if (!code_word || typeof code_word !== 'string') {
     return NextResponse.json({ error: 'Missing code_word' }, { status: 400 })
@@ -35,8 +38,8 @@ export async function POST(req: NextRequest) {
     .from('attendance_records')
     .insert({
       student_id: id,
-      latitude,
-      longitude,
+      latitude: latitude ?? null,
+      longitude: longitude ?? null,
       accuracy: accuracy ?? null,
       code_word: code_word.trim(),
     })

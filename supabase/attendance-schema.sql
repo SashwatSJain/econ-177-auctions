@@ -1,8 +1,8 @@
 CREATE TABLE attendance_records (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id   TEXT NOT NULL,
-  latitude     DOUBLE PRECISION NOT NULL,
-  longitude    DOUBLE PRECISION NOT NULL,
+  latitude     DOUBLE PRECISION,
+  longitude    DOUBLE PRECISION,
   accuracy     DOUBLE PRECISION,
   code_word    TEXT NOT NULL,
   submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

@@ -92,10 +92,6 @@ export default function AttendanceFlow() {
   // ── Form ──────────────────────────────────────────────────────────────────
 
   function handleReview() {
-    if (gps.status !== 'acquired') {
-      setError('Waiting for location. Please allow location access and try again.')
-      return
-    }
     if (!codeWord.trim()) {
       setError('Please enter the code word.')
       return
@@ -274,7 +270,7 @@ export default function AttendanceFlow() {
                 onClick={handleReview}
                 disabled={gps.status === 'acquiring'}
               >
-                {gps.status === 'acquiring' ? 'Waiting for location…' : 'Review →'}
+                {gps.status === 'acquiring' ? 'Acquiring location…' : 'Review →'}
               </button>
             </div>
           )}
