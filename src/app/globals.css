@@ -93,6 +93,17 @@ input[type="number"]:focus {
   color: var(--navy);
 }
 
+.exp-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.exp-card:hover {
+  border-color: var(--navy);
+  box-shadow: 0 4px 16px rgba(0, 54, 96, 0.08);
+}
+
 .round-dot {
   width: 8px;
   height: 8px;
