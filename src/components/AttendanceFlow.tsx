@@ -342,9 +342,6 @@ export default function AttendanceFlow() {
                   </p>
                 </>
               )}
-              <Link href="/" className="btn-gold inline-block rounded-lg px-6 py-3 text-sm">
-                Return to Experiments
-              </Link>
             </div>
           )}
 
