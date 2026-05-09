@@ -187,9 +187,8 @@ export default function AttendanceFlow() {
               </label>
               <input
                 type="text"
-                inputMode="numeric"
                 className="w-full rounded-lg px-4 py-3 text-base mb-2"
-                placeholder="e.g. 1234567"
+                placeholder="7-character PERM number"
                 value={studentId}
                 onChange={(e) => { setStudentId(e.target.value); setError('') }}
                 onKeyDown={(e) => e.key === 'Enter' && handleIdentify()}
