@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Stat } from './charts'
 import type { AllPayEntry } from '@/lib/types'
+import { SkeletonTable } from '@/components/ui/Skeleton'
 
 export default function Exp6Results() {
   const [rows, setRows] = useState<AllPayEntry[]>([])
@@ -124,12 +125,13 @@ export default function Exp6Results() {
       </div>
 
       {rows.length === 0 ? (
+        loading ? <SkeletonTable statCols={7} tableCols={5} tableRows={6} /> : (
         <div className="rounded-xl p-12 text-center"
           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
             No entries yet. Students join at <strong>/exp6/{numBidders}</strong>.
           </p>
-        </div>
+        </div>)
       ) : (
         <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>

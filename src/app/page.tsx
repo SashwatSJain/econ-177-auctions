@@ -262,7 +262,8 @@ export default function HomePage() {
         </section>
 
         <div
-          className={`grid gap-3 mb-10 ${
+          key={activeTab}
+          className={`grid gap-3 mb-10 page-enter ${
             activeSection.cards.length === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'
           }`}
         >

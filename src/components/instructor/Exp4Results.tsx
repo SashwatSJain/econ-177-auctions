@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Stat, Exp4ScatterChart, filterExp4Outliers } from './charts'
 import type { Experiment4Response } from '@/lib/types'
+import { SkeletonTable } from '@/components/ui/Skeleton'
 
 const EXP4_TABS = [
   { key: 'bid_2' as const, label: '2 Bidders' },
@@ -161,12 +162,13 @@ export default function Exp4Results() {
       </div>
 
       {rows.length === 0 ? (
+        loading ? <SkeletonTable statCols={4} tableCols={7} tableRows={6} /> : (
         <div className="rounded-xl p-12 text-center"
           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-            {loading ? 'Loading…' : 'No submissions yet.'}
+            No submissions yet.
           </p>
-        </div>
+        </div>)
       ) : (
         <div className="rounded-xl overflow-auto" style={{ border: '1px solid var(--border)' }}>
           <table className="w-full text-sm" style={{ minWidth: '700px' }}>

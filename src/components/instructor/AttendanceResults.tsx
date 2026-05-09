@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import type { AttendanceRecord } from '@/lib/types'
+import { SkeletonTable } from '@/components/ui/Skeleton'
 
 const ATTENDANCE_URL = 'https://econ-177.vercel.app/attendance'
 
@@ -160,7 +161,7 @@ export default function AttendanceResults() {
         </div>
       </div>
 
-      {loading && <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading…</p>}
+      {loading && <SkeletonTable tableCols={5} tableRows={7} />}
 
       {/* ── Code-filtered flat view with sortable distance columns ── */}
       {!loading && showDistCols && (

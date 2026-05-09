@@ -4,6 +4,11 @@ import { useState, useEffect, useCallback } from 'react'
 import { Stat } from './charts'
 import { AUCTION_CONFIGS, TOTAL_ROUNDS } from '@/lib/auction-config'
 import type { Bid } from '@/lib/types'
+import { SkeletonTable } from '@/components/ui/Skeleton'
+
+function SkeletonBids() {
+  return <SkeletonTable statCols={3} tableCols={8} tableRows={6} />
+}
 
 function computeRoundRevenue(roundBids: Bid[]): number {
   return roundBids.reduce((sum, b) => sum + Number(b.amount), 0)
@@ -201,12 +206,13 @@ export default function Exp1Results() {
 
       {/* Bid table */}
       {filtered.length === 0 ? (
+        loading ? <SkeletonBids /> : (
         <div className="rounded-xl p-12 text-center"
           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-            {loading ? 'Loading bids…' : 'No bids yet for this experiment.'}
+            No bids yet for this experiment.
           </p>
-        </div>
+        </div>)
       ) : (
         <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
           <table className="w-full text-sm">
