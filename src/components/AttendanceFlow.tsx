@@ -190,7 +190,7 @@ export default function AttendanceFlow() {
                 className="w-full rounded-lg px-4 py-3 text-base mb-2"
                 placeholder="7-character PERM number"
                 value={studentId}
-                onChange={(e) => { setStudentId(e.target.value); setError('') }}
+                onChange={(e) => { setStudentId(e.target.value.toLowerCase()); setError('') }}
                 onKeyDown={(e) => e.key === 'Enter' && handleIdentify()}
                 autoFocus
               />
