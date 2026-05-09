@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import type { AttendanceRecord } from '@/lib/types'
-import { SkeletonTable } from '@/components/ui/Skeleton'
 
 const ATTENDANCE_URL = 'https://econ-177.vercel.app/attendance'
 
@@ -121,18 +120,35 @@ export default function AttendanceResults() {
 
   const showDistCols = code.length > 0
 
-  // Group only when no code filter (day view); flat list when filtering by code
-  const byDay = useMemo(() => {
+  // Group only when no code filter; nested by day → code word
+  const byDayAndCode = useMemo(() => {
     if (showDistCols) return null
-    return records.reduce<Record<string, AttendanceRecord[]>>((acc, r) => {
+    return records.reduce<Record<string, Record<string, AttendanceRecord[]>>>((acc, r) => {
       const day = new Date(r.submitted_at).toLocaleDateString('en-US', {
         timeZone: 'America/Los_Angeles',
         weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
       })
-      ;(acc[day] ??= []).push(r)
+      const word = r.code_word
+      ;((acc[day] ??= {})[word] ??= []).push(r)
       return acc
     }, {})
   }, [records, showDistCols])
+
+  const handleExport = async () => {
+    const XLSX = await import('xlsx')
+    const wb = XLSX.utils.book_new()
+    const sheet = records.map((r) => ({
+      'Student ID': r.student_id,
+      'Code Word': r.code_word,
+      'Date': new Date(r.submitted_at).toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles' }),
+      'Time': new Date(r.submitted_at).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' }),
+      'Latitude': r.latitude ?? '',
+      'Longitude': r.longitude ?? '',
+      'Accuracy (m)': r.accuracy ?? '',
+    }))
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet), 'Attendance')
+    XLSX.writeFile(wb, 'attendance.xlsx')
+  }
 
   // ── render ──────────────────────────────────────────────────────────────────
   return (
@@ -154,14 +170,17 @@ export default function AttendanceResults() {
             {sorted.length} match{sorted.length !== 1 ? 'es' : ''}
           </span>
         )}
-        <div style={{ marginLeft: 'auto' }}>
+        <div className="flex gap-2" style={{ marginLeft: 'auto' }}>
+          <button className="btn-ghost rounded-lg px-4 py-2 text-sm" onClick={handleExport} disabled={records.length === 0}>
+            ⬇ Excel
+          </button>
           <button className="btn-gold rounded-lg px-4 py-2 text-sm" onClick={() => setShowQR(true)}>
             Show QR Code
           </button>
         </div>
       </div>
 
-      {loading && <SkeletonTable tableCols={5} tableRows={7} />}
+      {loading && <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading…</p>}
 
       {/* ── Code-filtered flat view with sortable distance columns ── */}
       {!loading && showDistCols && (
@@ -210,7 +229,7 @@ export default function AttendanceResults() {
         </>
       )}
 
-      {/* ── Default day-grouped view ── */}
+      {/* ── Default day → code word grouped view ── */}
       {!loading && !showDistCols && (
         <>
           {records.length === 0 ? (
@@ -218,47 +237,61 @@ export default function AttendanceResults() {
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No attendance submissions yet.</p>
             </div>
           ) : (
-            <div className="flex flex-col gap-8">
-              {Object.entries(byDay!).map(([day, rows]) => (
-                <div key={day}>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold" style={{ color: 'var(--navy)' }}>{day}</h3>
-                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'var(--navy)', color: '#fff' }}>
-                      {rows.length} present
-                    </span>
+            <div className="flex flex-col gap-10">
+              {Object.entries(byDayAndCode!).map(([day, byCode]) => {
+                const dayTotal = Object.values(byCode).reduce((s, rows) => s + rows.length, 0)
+                return (
+                  <div key={day}>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-semibold" style={{ color: 'var(--navy)' }}>{day}</h3>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'var(--navy)', color: '#fff' }}>
+                        {dayTotal} present
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-4">
+                      {Object.entries(byCode).map(([word, rows]) => (
+                        <div key={word}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: 'var(--surface2)', color: 'var(--navy)', letterSpacing: '0.04em' }}>
+                              {word}
+                            </span>
+                            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{rows.length} student{rows.length !== 1 ? 's' : ''}</span>
+                          </div>
+                          <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                              <thead>
+                                <tr style={{ background: 'var(--navy)', color: 'white' }}>
+                                  <Th>PERM</Th><Th>Time</Th><Th>Location</Th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {rows.map((r, i) => (
+                                  <tr key={r.id} style={{
+                                    borderBottom: i < rows.length - 1 ? '1px solid var(--border)' : 'none',
+                                    background: i % 2 === 0 ? 'white' : 'var(--surface)',
+                                  }}>
+                                    <td style={td}>{r.student_id}</td>
+                                    <td style={{ ...td, color: 'var(--text-muted)' }}>
+                                      {new Date(r.submitted_at).toLocaleTimeString('en-US', {
+                                        timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit',
+                                      })}
+                                    </td>
+                                    <td style={{ ...td, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                                      {r.latitude != null && r.longitude != null
+                                        ? `${r.latitude.toFixed(5)}, ${r.longitude.toFixed(5)}`
+                                        : <span style={{ fontStyle: 'italic' }}>unavailable</span>}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                      <thead>
-                        <tr style={{ background: 'var(--navy)', color: 'white' }}>
-                          <Th>PERM</Th><Th>Code Word</Th><Th>Time</Th><Th>Location</Th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rows.map((r, i) => (
-                          <tr key={r.id} style={{
-                            borderBottom: i < rows.length - 1 ? '1px solid var(--border)' : 'none',
-                            background: i % 2 === 0 ? 'white' : 'var(--surface)',
-                          }}>
-                            <td style={td}>{r.student_id}</td>
-                            <td style={td}>{r.code_word}</td>
-                            <td style={{ ...td, color: 'var(--text-muted)' }}>
-                              {new Date(r.submitted_at).toLocaleTimeString('en-US', {
-                                timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit',
-                              })}
-                            </td>
-                            <td style={{ ...td, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                              {r.latitude != null && r.longitude != null
-                                ? `${r.latitude.toFixed(5)}, ${r.longitude.toFixed(5)}`
-                                : <span style={{ fontStyle: 'italic' }}>unavailable</span>}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </>
