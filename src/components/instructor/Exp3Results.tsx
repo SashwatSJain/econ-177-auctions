@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { Stat, Exp3LineChart, Exp3DualLineChart, ChartProps } from './charts'
 import { EXPERIMENT3_TREATMENTS } from '@/lib/experiment3-config'
 import type { Experiment3Round } from '@/lib/types'
-import { SkeletonTable } from '@/components/ui/Skeleton'
 
 const PAIRED_TREATMENT: Record<string, string> = {
   'exp3-1': 'exp3-2',
@@ -381,13 +380,12 @@ export default function Exp3Results() {
       </div>
 
       {filteredRows.length === 0 ? (
-        loading ? <SkeletonTable statCols={6} tableCols={12} tableRows={6} /> : (
         <div className="rounded-xl p-12 text-center"
           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-            No rows yet for this treatment.
+            {loading ? 'Loading rows…' : 'No rows yet for this treatment.'}
           </p>
-        </div>)
+        </div>
       ) : (
         <div className="rounded-xl overflow-auto" style={{ border: '1px solid var(--border)' }}>
           <table className="w-full text-sm" style={{ minWidth: '1200px' }}>

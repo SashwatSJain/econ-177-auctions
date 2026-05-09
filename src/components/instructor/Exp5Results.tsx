@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Stat } from './charts'
 import type { BetaCVEntry } from '@/lib/types'
-import { SkeletonTable } from '@/components/ui/Skeleton'
 
 function fmtBid(n: number, variant: 'integer' | 'continuous') {
   return variant === 'continuous' ? `$${Number(n).toFixed(2)}` : `$${Number(n)}`
@@ -136,13 +135,12 @@ export default function Exp5Results() {
       </div>
 
       {rows.length === 0 ? (
-        loading ? <SkeletonTable statCols={7} tableCols={7} tableRows={6} /> : (
         <div className="rounded-xl p-12 text-center"
           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-            No students have joined yet. Share /exp5/{variant} with your class.
+            {loading ? 'Loading…' : `No students have joined yet. Share /exp5/${variant} with your class.`}
           </p>
-        </div>)
+        </div>
       ) : (
         <div className="space-y-6">
           {pairs.length > 0 && (

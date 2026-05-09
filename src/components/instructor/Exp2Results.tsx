@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Stat } from './charts'
 import type { RiskAversionResponse } from '@/lib/types'
-import { SkeletonTable } from '@/components/ui/Skeleton'
 
 const RA_C_VALUES = [10, 20, 30, 40, 50, 60, 70, 80, 90]
 const RA_COL_NAMES = ['p_10','p_20','p_30','p_40','p_50','p_60','p_70','p_80','p_90'] as const
@@ -103,13 +102,12 @@ export default function Exp2Results() {
       </div>
 
       {rows.length === 0 ? (
-        loading ? <SkeletonTable statCols={3} tableCols={14} tableRows={6} /> : (
         <div className="rounded-xl p-12 text-center"
           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-            No submissions yet.
+            {loading ? 'Loading…' : 'No submissions yet.'}
           </p>
-        </div>)
+        </div>
       ) : (
         <div className="rounded-xl overflow-auto" style={{ border: '1px solid var(--border)' }}>
           <table className="w-full text-sm" style={{ minWidth: '900px' }}>
