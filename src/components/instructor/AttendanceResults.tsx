@@ -124,7 +124,7 @@ export default function AttendanceResults() {
                           </td>
                           <td style={{ ...td, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
                             {r.latitude != null && r.longitude != null
-                              ? `${r.latitude.toFixed(4)}, ${r.longitude.toFixed(4)}`
+                              ? `${r.latitude.toFixed(5)}, ${r.longitude.toFixed(5)}`
                               : <span style={{ fontStyle: 'italic' }}>unavailable</span>}
                           </td>
                         </tr>
