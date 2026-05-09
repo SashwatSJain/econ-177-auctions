@@ -18,6 +18,7 @@ export default function AttendanceFlow() {
   const [studentId, setStudentId] = useState('')
   const [codeWord, setCodeWord] = useState('')
   const [alreadySubmitted, setAlreadySubmitted] = useState(false)
+  const [deviceBlocked, setDeviceBlocked] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [gps, setGps] = useState<GpsState>({
@@ -123,7 +124,12 @@ export default function AttendanceFlow() {
       })
 
       if (res.status === 409) {
-        setAlreadySubmitted(true)
+        const json = await res.json()
+        if (json.error === 'Device already used for this code') {
+          setDeviceBlocked(true)
+        } else {
+          setAlreadySubmitted(true)
+        }
         setPanel('complete')
         return
       }
@@ -323,7 +329,16 @@ export default function AttendanceFlow() {
               >
                 ✓
               </div>
-              {alreadySubmitted ? (
+              {deviceBlocked ? (
+                <>
+                  <h2 className="serif text-3xl mb-2" style={{ color: 'var(--text)' }}>
+                    Already Submitted
+                  </h2>
+                  <p className="text-sm mb-8" style={{ color: 'var(--text-muted)' }}>
+                    This device has already submitted attendance with this code word.
+                  </p>
+                </>
+              ) : alreadySubmitted ? (
                 <>
                   <h2 className="serif text-3xl mb-2" style={{ color: 'var(--text)' }}>
                     Already Recorded

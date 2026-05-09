@@ -9,9 +9,9 @@ CREATE TABLE attendance_records (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- One submission per student per Pacific-time calendar day
-CREATE UNIQUE INDEX idx_attendance_student_day
-  ON attendance_records (student_id, DATE(submitted_at AT TIME ZONE 'America/Los_Angeles'));
+-- One submission per student per code word
+CREATE UNIQUE INDEX idx_attendance_student_code
+  ON attendance_records (student_id, code_word);
 
 ALTER TABLE attendance_records ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "public insert" ON attendance_records FOR INSERT WITH CHECK (true);

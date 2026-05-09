@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
 
 export async function GET() {
@@ -30,16 +31,25 @@ export async function POST(req: NextRequest) {
   }
 
   const id = student_id.trim().toLowerCase()
+  const normalizedCode = code_word.trim().toLowerCase()
+  const cookieStore = await cookies()
+
+  // Check if this device has already submitted with this code word
+  const usedCodes = (cookieStore.get('att_used_codes')?.value ?? '')
+    .split(',')
+    .filter(Boolean)
+  if (usedCodes.includes(normalizedCode)) {
+    return NextResponse.json({ error: 'Device already used for this code' }, { status: 409 })
+  }
+
   const admin = createAdminSupabaseClient()
 
-  // Check for duplicate submission today (Pacific time)
-  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+  // Check for duplicate submission for this student + code word
   const { count } = await admin
     .from('attendance_records')
     .select('id', { count: 'exact', head: true })
     .eq('student_id', id)
-    .gte('submitted_at', `${today}T00:00:00-08:00`)
-    .lt('submitted_at', `${today}T23:59:59-08:00`)
+    .eq('code_word', normalizedCode)
 
   if (count && count > 0) {
     return NextResponse.json({ error: 'Already submitted' }, { status: 409 })
@@ -52,7 +62,7 @@ export async function POST(req: NextRequest) {
       latitude: latitude ?? null,
       longitude: longitude ?? null,
       accuracy: accuracy ?? null,
-      code_word: code_word.trim(),
+      code_word: normalizedCode,
     })
     .select()
     .single()
@@ -64,5 +74,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json(data, { status: 201 })
+  // Mark this code word as used on this device
+  const updatedCodes = [...usedCodes, normalizedCode].join(',')
+  const res = NextResponse.json(data, { status: 201 })
+  res.cookies.set('att_used_codes', updatedCodes, {
+    httpOnly: true,
+    sameSite: 'strict',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 2,
+  })
+  return res
 }
