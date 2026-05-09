@@ -85,3 +85,37 @@ export async function POST(req: NextRequest) {
   })
   return res
 }
+
+export async function DELETE(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const type = searchParams.get('type')
+  const admin = createAdminSupabaseClient()
+
+  if (type === 'all') {
+    const { error } = await admin.from('attendance_records').delete().not('id', 'is', null)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ deleted: true })
+  }
+
+  if (type === 'student') {
+    const student_id = searchParams.get('student_id')?.trim().toLowerCase()
+    if (!student_id) return NextResponse.json({ error: 'Missing student_id' }, { status: 400 })
+    const { error } = await admin.from('attendance_records').delete().eq('student_id', student_id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ deleted: true })
+  }
+
+  if (type === 'day') {
+    const day = searchParams.get('day') // YYYY-MM-DD Pacific
+    if (!day) return NextResponse.json({ error: 'Missing day' }, { status: 400 })
+    const { error } = await admin
+      .from('attendance_records')
+      .delete()
+      .gte('submitted_at', `${day}T00:00:00-08:00`)
+      .lt('submitted_at', `${day}T23:59:59-08:00`)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ deleted: true })
+  }
+
+  return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
+}
