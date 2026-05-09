@@ -1,5 +1,12 @@
 import Link from 'next/link'
 
+const ATTENDANCE = {
+  href: '/instructor/attendance',
+  title: 'Attendance',
+  description: 'Student sign-ins with PERM number, code word, timestamp, and GPS location. Grouped by class day.',
+  detail: 'All sessions',
+}
+
 const EXPERIMENTS = [
   {
     num: 1,
@@ -53,6 +60,28 @@ export default function InstructorOverview() {
         <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
           Select an experiment to view results, charts, and export data.
         </p>
+      </div>
+
+      {/* Attendance card */}
+      <div className="mb-4">
+        <Link
+          href={ATTENDANCE.href}
+          className="exp-card group block rounded-xl p-5 transition-all"
+          style={{ textDecoration: 'none' }}
+        >
+          <div className="flex items-start justify-between gap-2 mb-3">
+            <div
+              className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold"
+              style={{ background: 'var(--gold)', color: 'var(--navy)' }}
+            >
+              ✓
+            </div>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>View records →</span>
+          </div>
+          <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--navy)' }}>{ATTENDANCE.title}</h3>
+          <p className="text-xs leading-relaxed mb-3" style={{ color: 'var(--text-muted)' }}>{ATTENDANCE.description}</p>
+          <p className="text-[10px] tracking-widest uppercase font-medium" style={{ color: 'rgba(0,54,96,0.45)' }}>{ATTENDANCE.detail}</p>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

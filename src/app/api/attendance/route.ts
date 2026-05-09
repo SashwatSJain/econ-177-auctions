@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
 
+export async function GET() {
+  const admin = createAdminSupabaseClient()
+  const { data, error } = await admin
+    .from('attendance_records')
+    .select('*')
+    .order('submitted_at', { ascending: false })
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data ?? [])
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json()
   const { student_id, latitude, longitude, accuracy, code_word } = body
