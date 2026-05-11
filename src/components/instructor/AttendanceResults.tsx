@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import type { AttendanceRecord } from '@/lib/types'
 
@@ -17,7 +17,6 @@ function haversine(lat1: number, lon1: number, lat2: number, lon2: number): numb
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-// Mean location + IQR-trimmed mean location for a group of records
 function groupLocationStats(rows: AttendanceRecord[]) {
   const gps = rows.filter((r) => r.latitude != null && r.longitude != null)
   if (gps.length === 0) return { meanLat: null, meanLon: null, trimLat: null, trimLon: null }
@@ -36,15 +35,6 @@ function groupLocationStats(rows: AttendanceRecord[]) {
   const trimLon = middle.reduce((s, { r }) => s + r.longitude!, 0) / middle.length
 
   return { meanLat, meanLon, trimLat, trimLon }
-}
-
-type SortKey = 'student_id' | 'submitted_at' | 'loc_dist' | 'time_dist'
-type SortDir = 'asc' | 'desc'
-
-type DaySection = {
-  dayKey: string  // YYYY-MM-DD Pacific, used for delete API
-  label: string   // display label
-  byCode: Record<string, AttendanceRecord[]>
 }
 
 function QRModal({ onClose }: { onClose: () => void }) {
@@ -70,10 +60,10 @@ export default function AttendanceResults() {
   const [records, setRecords] = useState<AttendanceRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [showQR, setShowQR] = useState(false)
-  const [codeFilter, setCodeFilter] = useState('')
-  const [sortKey, setSortKey] = useState<SortKey>('submitted_at')
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [deleting, setDeleting] = useState(false)
+  const [wordOfDay, setWordOfDay] = useState('')
+  const [locationMode, setLocationMode] = useState<'off' | 'optional' | 'required'>('optional')
+  const [savingMode, setSavingMode] = useState(false)
 
   const fetchRecords = useCallback(async () => {
     setLoading(true)
@@ -87,20 +77,36 @@ export default function AttendanceResults() {
 
   useEffect(() => { fetchRecords() }, [fetchRecords])
 
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((r) => r.json())
+      .then((d) => { if (d.location_mode) setLocationMode(d.location_mode) })
+      .catch(() => {})
+  }, [])
+
+  async function setMode(mode: 'off' | 'optional' | 'required') {
+    setSavingMode(true)
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ location_mode: mode }),
+      })
+      if (res.ok) {
+        const d = await res.json()
+        setLocationMode(d.location_mode)
+      }
+    } finally {
+      setSavingMode(false)
+    }
+  }
+
   // ── Delete handlers ──────────────────────────────────────────────────────────
 
   async function deleteAll() {
     if (!confirm('Delete ALL attendance records? This cannot be undone.')) return
     setDeleting(true)
     await fetch('/api/attendance?type=all', { method: 'DELETE' })
-    setDeleting(false)
-    fetchRecords()
-  }
-
-  async function deleteDay(dayKey: string, label: string) {
-    if (!confirm(`Delete all records for ${label}? This cannot be undone.`)) return
-    setDeleting(true)
-    await fetch(`/api/attendance?type=day&day=${encodeURIComponent(dayKey)}`, { method: 'DELETE' })
     setDeleting(false)
     fetchRecords()
   }
@@ -113,13 +119,11 @@ export default function AttendanceResults() {
     fetchRecords()
   }
 
-  // ── Export ───────────────────────────────────────────────────────────────────
+  // ── Export all ───────────────────────────────────────────────────────────────
 
   const handleExport = async () => {
     const XLSX = await import('xlsx')
     const wb = XLSX.utils.book_new()
-
-    // Compute per-code-word location stats
     const byCode: Record<string, AttendanceRecord[]> = {}
     for (const r of records) {
       ;(byCode[r.code_word] ??= []).push(r)
@@ -128,17 +132,14 @@ export default function AttendanceResults() {
     for (const [word, rows] of Object.entries(byCode)) {
       statsCache[word] = groupLocationStats(rows)
     }
-
     const sheet = records.map((r) => {
       const { meanLat, meanLon, trimLat, trimLon } = statsCache[r.code_word]
       const distMean =
         meanLat != null && meanLon != null && r.latitude != null && r.longitude != null
-          ? haversine(r.latitude, r.longitude, meanLat, meanLon)
-          : null
+          ? haversine(r.latitude, r.longitude, meanLat, meanLon) : null
       const distTrim =
         trimLat != null && trimLon != null && r.latitude != null && r.longitude != null
-          ? haversine(r.latitude, r.longitude, trimLat, trimLon)
-          : null
+          ? haversine(r.latitude, r.longitude, trimLat, trimLon) : null
       return {
         'Student ID': r.student_id,
         'Code Word': r.code_word,
@@ -154,97 +155,114 @@ export default function AttendanceResults() {
     XLSX.writeFile(wb, 'attendance.xlsx')
   }
 
-  // ── Filtered / sorted view (code filter active) ───────────────────────────
+  // ── Word-of-day report ───────────────────────────────────────────────────────
 
-  const code = codeFilter.trim().toLowerCase()
-  const filtered = useMemo(
-    () => (code ? records.filter((r) => r.code_word.toLowerCase() === code) : records),
-    [records, code]
-  )
-
-  const { avgLat, avgLon, avgTs } = useMemo(() => {
-    const gps = filtered.filter((r) => r.latitude != null && r.longitude != null)
-    const avgLat = gps.length ? gps.reduce((s, r) => s + r.latitude!, 0) / gps.length : null
-    const avgLon = gps.length ? gps.reduce((s, r) => s + r.longitude!, 0) / gps.length : null
-    const ts = filtered.map((r) => new Date(r.submitted_at).getTime())
-    const avgTs = ts.length ? ts.reduce((s, t) => s + t, 0) / ts.length : null
-    return { avgLat, avgLon, avgTs }
-  }, [filtered])
-
-  const annotated = useMemo(() =>
-    filtered.map((r) => ({
-      ...r,
-      locDist:
-        avgLat != null && avgLon != null && r.latitude != null && r.longitude != null
-          ? haversine(r.latitude, r.longitude, avgLat, avgLon)
-          : null,
-      timeDist:
-        avgTs != null ? Math.abs(new Date(r.submitted_at).getTime() - avgTs) / 1000 : null,
-    })),
-    [filtered, avgLat, avgLon, avgTs]
-  )
-
-  const sorted = useMemo(() => {
-    const dir = sortDir === 'asc' ? 1 : -1
-    return [...annotated].sort((a, b) => {
-      switch (sortKey) {
-        case 'student_id': return dir * a.student_id.localeCompare(b.student_id)
-        case 'submitted_at': return dir * (new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime())
-        case 'loc_dist': return dir * ((a.locDist ?? Infinity) - (b.locDist ?? Infinity))
-        case 'time_dist': return dir * ((a.timeDist ?? Infinity) - (b.timeDist ?? Infinity))
+  const handleWordOfDayReport = async () => {
+    const word = wordOfDay.trim()
+    if (!word) return
+    const rows = records.filter((r) => r.code_word.toLowerCase() === word.toLowerCase())
+    if (rows.length === 0) {
+      alert(`No submissions found for code word "${word}".`)
+      return
+    }
+    const XLSX = await import('xlsx')
+    const wb = XLSX.utils.book_new()
+    const stats = groupLocationStats(rows)
+    const { meanLat, meanLon, trimLat, trimLon } = stats
+    const sheet = rows.map((r) => {
+      const distMean =
+        meanLat != null && meanLon != null && r.latitude != null && r.longitude != null
+          ? haversine(r.latitude, r.longitude, meanLat, meanLon) : null
+      const distTrim =
+        trimLat != null && trimLon != null && r.latitude != null && r.longitude != null
+          ? haversine(r.latitude, r.longitude, trimLat, trimLon) : null
+      return {
+        'Student ID': r.student_id,
+        'Code Word': r.code_word,
+        'Timestamp': new Date(r.submitted_at).toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }),
+        'Latitude': r.latitude ?? '',
+        'Longitude': r.longitude ?? '',
+        'Accuracy (m)': r.accuracy != null ? Number(r.accuracy).toFixed(1) : '',
+        'Dist from mean (m)': distMean != null ? distMean.toFixed(1) : '',
+        'Dist from IQR mean (m)': distTrim != null ? distTrim.toFixed(1) : '',
       }
     })
-  }, [annotated, sortKey, sortDir])
-
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
-    else { setSortKey(key); setSortDir('asc') }
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet), 'Attendance')
+    XLSX.writeFile(wb, `attendance-${word}.xlsx`)
   }
 
-  const showDistCols = code.length > 0
-
-  // ── Day → code word grouping ──────────────────────────────────────────────
-
-  const daySections = useMemo<DaySection[]>(() => {
-    if (showDistCols) return []
-    const map = new Map<string, DaySection>()
-    for (const r of records) {
-      const dayKey = new Date(r.submitted_at).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
-      const label = new Date(r.submitted_at).toLocaleDateString('en-US', {
-        timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
-      })
-      if (!map.has(dayKey)) map.set(dayKey, { dayKey, label, byCode: {} })
-      const section = map.get(dayKey)!
-      ;(section.byCode[r.code_word] ??= []).push(r)
-    }
-    return Array.from(map.values())
-  }, [records, showDistCols])
-
   // ── render ───────────────────────────────────────────────────────────────────
+
+  const sorted = [...records].sort(
+    (a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime()
+  )
 
   return (
     <>
       {showQR && <QRModal onClose={() => setShowQR(false)} />}
 
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
+      {/* Controls card */}
+      <div className="flex flex-wrap items-center gap-4 mb-6 p-4 rounded-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        {/* Word of day */}
+        <span className="text-xs font-medium" style={{ color: 'var(--navy)', whiteSpace: 'nowrap' }}>Word of the day</span>
         <input
           type="text"
           className="rounded-lg px-3 py-2 text-sm"
-          style={{ border: '1px solid var(--border)', width: '220px' }}
-          placeholder="Filter by code word…"
-          value={codeFilter}
-          onChange={(e) => { setCodeFilter(e.target.value); setSortKey('submitted_at'); setSortDir('asc') }}
+          style={{ border: '1px solid var(--border)', width: '200px' }}
+          placeholder="Enter code word…"
+          value={wordOfDay}
+          onChange={(e) => setWordOfDay(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleWordOfDayReport() }}
         />
-        {showDistCols && (
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            {sorted.length} match{sorted.length !== 1 ? 'es' : ''}
-          </span>
-        )}
+        <button
+          onClick={handleWordOfDayReport}
+          disabled={!wordOfDay.trim()}
+          className="btn-gold rounded-lg px-4 py-2 text-sm"
+        >
+          Generate Report
+        </button>
+
+        {/* Divider */}
+        <div style={{ width: '1px', height: '28px', background: 'var(--border)' }} />
+
+        {/* Location mode segmented control */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium" style={{ color: 'var(--navy)', whiteSpace: 'nowrap' }}>Location</span>
+          <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)', opacity: savingMode ? 0.6 : 1 }}>
+            {(['off', 'optional', 'required'] as const).map((mode) => {
+              const labels = { off: 'Off', optional: 'Optional', required: 'Required' }
+              const active = locationMode === mode
+              return (
+                <button
+                  key={mode}
+                  onClick={() => setMode(mode)}
+                  disabled={savingMode}
+                  className="text-xs px-3 py-1.5 transition-colors"
+                  style={{
+                    background: active ? 'var(--navy)' : 'transparent',
+                    color: active ? '#fff' : 'var(--text-muted)',
+                    borderRight: mode !== 'required' ? '1px solid var(--border)' : 'none',
+                    fontWeight: active ? 600 : 400,
+                    cursor: savingMode ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {labels[mode]}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          {records.length} submission{records.length !== 1 ? 's' : ''}
+        </span>
         <div className="flex gap-2" style={{ marginLeft: 'auto' }}>
           <button onClick={handleExport} disabled={records.length === 0}
             className="btn-ghost text-xs px-3 py-1.5 rounded">
-            ⬇ Excel
+            ⬇ Export All
           </button>
           <button onClick={deleteAll} disabled={deleting || records.length === 0}
             className="text-xs px-3 py-1.5 rounded transition-all"
@@ -259,156 +277,62 @@ export default function AttendanceResults() {
 
       {loading && <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading…</p>}
 
-      {/* ── Code-filtered flat view ── */}
-      {!loading && showDistCols && (
-        sorted.length === 0 ? (
-          <div className="rounded-xl p-8 text-center" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No submissions with that code word.</p>
-          </div>
-        ) : (
-          <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-              <thead>
-                <tr style={{ background: 'var(--navy)', color: 'white' }}>
-                  <SortTh label="PERM" col="student_id" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                  <Th>Code Word</Th>
-                  <SortTh label="Time" col="submitted_at" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                  <SortTh label="Dist from avg (m)" col="loc_dist" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                  <SortTh label="Time from avg" col="time_dist" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                  <Th></Th>
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map((r, i) => (
-                  <tr key={r.id} style={{ borderBottom: i < sorted.length - 1 ? '1px solid var(--border)' : 'none', background: i % 2 === 0 ? 'white' : 'var(--surface)' }}>
-                    <td style={td}>{r.student_id}</td>
-                    <td style={td}>{r.code_word}</td>
-                    <td style={{ ...td, color: 'var(--text-muted)' }}>
-                      {new Date(r.submitted_at).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' })}
-                    </td>
-                    <td style={{ ...td, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                      {r.locDist != null ? `${r.locDist.toFixed(0)} m` : <span style={{ fontStyle: 'italic' }}>—</span>}
-                    </td>
-                    <td style={{ ...td, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                      {r.timeDist != null ? fmtSeconds(r.timeDist) : '—'}
-                    </td>
-                    <td style={{ ...td, textAlign: 'right' }}>
-                      <button onClick={() => deleteStudent(r.student_id)} disabled={deleting}
-                        className="text-xs px-2 py-0.5 rounded"
-                        style={{ color: '#dc2626', border: '1px solid #fca5a5', background: 'transparent' }}>
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )
+      {!loading && records.length === 0 && (
+        <div className="rounded-xl p-8 text-center" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No attendance submissions yet.</p>
+        </div>
       )}
 
-      {/* ── Default day → code word view ── */}
-      {!loading && !showDistCols && (
-        records.length === 0 ? (
-          <div className="rounded-xl p-8 text-center" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No attendance submissions yet.</p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-10">
-            {daySections.map(({ dayKey, label, byCode }) => {
-              const dayTotal = Object.values(byCode).reduce((s, rows) => s + rows.length, 0)
-              return (
-                <div key={dayKey}>
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <h3 className="text-sm font-semibold" style={{ color: 'var(--navy)' }}>{label}</h3>
-                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'var(--navy)', color: '#fff' }}>
-                        {dayTotal} present
-                      </span>
-                    </div>
-                    <button onClick={() => deleteDay(dayKey, label)} disabled={deleting}
-                      className="text-xs px-2 py-1 rounded transition-all"
-                      style={{ background: 'transparent', border: '1px solid #fca5a5', color: '#dc2626' }}>
-                      Delete day
+      {!loading && records.length > 0 && (
+        <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+            <thead>
+              <tr style={{ background: 'var(--navy)', color: 'white' }}>
+                <Th>PERM</Th>
+                <Th>Timestamp</Th>
+                <Th>Code</Th>
+                <Th>Location</Th>
+                <Th></Th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((r, i) => (
+                <tr key={r.id} style={{ borderBottom: i < sorted.length - 1 ? '1px solid var(--border)' : 'none', background: i % 2 === 0 ? 'white' : 'var(--surface)' }}>
+                  <td style={td}>{r.student_id}</td>
+                  <td style={{ ...td, color: 'var(--text-muted)' }}>
+                    {new Date(r.submitted_at).toLocaleString('en-US', {
+                      timeZone: 'America/Los_Angeles',
+                      month: 'short', day: 'numeric',
+                      hour: 'numeric', minute: '2-digit',
+                    })}
+                  </td>
+                  <td style={{ ...td, fontWeight: 500 }}>{r.code_word}</td>
+                  <td style={{ ...td, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                    {r.latitude != null && r.longitude != null
+                      ? `${r.latitude.toFixed(5)}, ${r.longitude.toFixed(5)}`
+                      : <span style={{ fontStyle: 'italic' }}>unavailable</span>}
+                  </td>
+                  <td style={{ ...td, textAlign: 'right' }}>
+                    <button onClick={() => deleteStudent(r.student_id)} disabled={deleting}
+                      className="text-xs px-2 py-0.5 rounded"
+                      style={{ color: '#dc2626', border: '1px solid #fca5a5', background: 'transparent' }}>
+                      ✕
                     </button>
-                  </div>
-                  <div className="flex flex-col gap-4">
-                    {Object.entries(byCode).map(([word, rows]) => (
-                      <div key={word}>
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-xs font-medium px-2 py-0.5 rounded"
-                            style={{ background: 'var(--surface2)', color: 'var(--navy)', letterSpacing: '0.04em' }}>
-                            {word}
-                          </span>
-                          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                            {rows.length} student{rows.length !== 1 ? 's' : ''}
-                          </span>
-                        </div>
-                        <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                            <thead>
-                              <tr style={{ background: 'var(--navy)', color: 'white' }}>
-                                <Th>PERM</Th><Th>Time</Th><Th>Location</Th><Th></Th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {rows.map((r, i) => (
-                                <tr key={r.id} style={{ borderBottom: i < rows.length - 1 ? '1px solid var(--border)' : 'none', background: i % 2 === 0 ? 'white' : 'var(--surface)' }}>
-                                  <td style={td}>{r.student_id}</td>
-                                  <td style={{ ...td, color: 'var(--text-muted)' }}>
-                                    {new Date(r.submitted_at).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' })}
-                                  </td>
-                                  <td style={{ ...td, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                                    {r.latitude != null && r.longitude != null
-                                      ? `${r.latitude.toFixed(5)}, ${r.longitude.toFixed(5)}`
-                                      : <span style={{ fontStyle: 'italic' }}>unavailable</span>}
-                                  </td>
-                                  <td style={{ ...td, textAlign: 'right' }}>
-                                    <button onClick={() => deleteStudent(r.student_id)} disabled={deleting}
-                                      className="text-xs px-2 py-0.5 rounded"
-                                      style={{ color: '#dc2626', border: '1px solid #fca5a5', background: 'transparent' }}>
-                                      ✕
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </>
   )
 }
 
-function fmtSeconds(s: number): string {
-  if (s < 60) return `${Math.round(s)}s`
-  return `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`
-}
-
-function Th({ children }: { children: React.ReactNode }) {
+function Th({ children }: { children?: React.ReactNode }) {
   return (
     <th style={{ padding: '0.6rem 1rem', textAlign: 'left', fontSize: '0.7rem', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 500, fontFamily: 'inherit' }}>
       {children}
-    </th>
-  )
-}
-
-function SortTh({ label, col, sortKey, sortDir, onSort }: {
-  label: string; col: SortKey; sortKey: SortKey; sortDir: SortDir; onSort: (k: SortKey) => void
-}) {
-  const active = sortKey === col
-  return (
-    <th onClick={() => onSort(col)}
-      style={{ padding: '0.6rem 1rem', textAlign: 'left', fontSize: '0.7rem', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
-      {label} {active ? (sortDir === 'asc' ? '↑' : '↓') : <span style={{ opacity: 0.4 }}>↕</span>}
     </th>
   )
 }

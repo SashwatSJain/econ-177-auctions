@@ -21,6 +21,7 @@ export default function AttendanceFlow() {
   const [deviceBlocked, setDeviceBlocked] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [locationMode, setLocationMode] = useState<'off' | 'optional' | 'required'>('optional')
   const [gps, setGps] = useState<GpsState>({
     status: 'idle',
     latitude: null,
@@ -29,9 +30,17 @@ export default function AttendanceFlow() {
     errorMsg: '',
   })
 
-  // Acquire GPS as soon as the form panel appears
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((r) => r.json())
+      .then((d) => { if (d.location_mode) setLocationMode(d.location_mode) })
+      .catch(() => {})
+  }, [])
+
+  // Acquire GPS when form panel appears, unless mode is 'off'
   useEffect(() => {
     if (panel !== 'form') return
+    if (locationMode === 'off') return
     if (gps.status !== 'idle') return
 
     if (!navigator.geolocation) {
@@ -65,7 +74,7 @@ export default function AttendanceFlow() {
       },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
     )
-  }, [panel, gps.status])
+  }, [panel, locationMode, gps.status])
 
   // ── Identify ──────────────────────────────────────────────────────────────
 
@@ -222,37 +231,45 @@ export default function AttendanceFlow() {
                 PERM: {studentId.trim()}
               </p>
 
-              {/* GPS status card */}
-              <div
-                className="rounded-xl p-4 mb-6"
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-              >
-                <p className="text-xs uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>
-                  Location
-                </p>
-                {gps.status === 'acquiring' && (
-                  <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                    Acquiring location…
+              {/* GPS status card — hidden when mode is off */}
+              {locationMode !== 'off' && (
+                <div
+                  className="rounded-xl p-4 mb-6"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+                >
+                  <p className="text-xs uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>
+                    Location
                   </p>
-                )}
-                {gps.status === 'acquired' && (
-                  <p className="text-sm font-medium" style={{ color: 'var(--navy)' }}>
-                    ✓ Location acquired
-                  </p>
-                )}
-                {gps.status === 'error' && (
-                  <div>
-                    <p className="text-sm mb-2" style={{ color: '#dc2626' }}>{gps.errorMsg}</p>
-                    <button
-                      className="text-xs underline"
-                      style={{ color: 'var(--navy)' }}
-                      onClick={retryGps}
-                    >
-                      Retry
-                    </button>
-                  </div>
-                )}
-              </div>
+                  {gps.status === 'acquiring' && (
+                    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                      Acquiring location…
+                    </p>
+                  )}
+                  {gps.status === 'acquired' && (
+                    <p className="text-sm font-medium" style={{ color: 'var(--navy)' }}>
+                      ✓ Location acquired
+                    </p>
+                  )}
+                  {gps.status === 'error' && (
+                    <div>
+                      <p className="text-sm mb-2" style={{ color: '#dc2626' }}>{gps.errorMsg}</p>
+                      {locationMode === 'required' ? (
+                        <p className="text-sm font-medium" style={{ color: '#dc2626' }}>
+                          Location is required. Please come see the instructor at the end of class to record your attendance.
+                        </p>
+                      ) : (
+                        <button
+                          className="text-xs underline"
+                          style={{ color: 'var(--navy)' }}
+                          onClick={retryGps}
+                        >
+                          Retry
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Code word */}
               <label className="block text-xs tracking-widest uppercase mb-2" style={{ color: 'var(--text-muted)' }}>
@@ -273,9 +290,16 @@ export default function AttendanceFlow() {
               <button
                 className="btn-gold w-full rounded-lg px-4 py-3 text-sm mt-2"
                 onClick={handleReview}
-                disabled={gps.status === 'acquiring'}
+                disabled={
+                  gps.status === 'acquiring' ||
+                  (locationMode === 'required' && gps.status !== 'acquired')
+                }
               >
-                {gps.status === 'acquiring' ? 'Acquiring location…' : 'Review →'}
+                {gps.status === 'acquiring'
+                  ? 'Acquiring location…'
+                  : locationMode === 'required' && gps.status === 'error'
+                  ? 'Location unavailable — see instructor'
+                  : 'Review →'}
               </button>
             </div>
           )}
