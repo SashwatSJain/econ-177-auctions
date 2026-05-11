@@ -1,4 +1,8 @@
+'use client'
+
 import Link from 'next/link'
+import { useState } from 'react'
+import NewQuarterModal from '@/components/instructor/NewQuarterModal'
 
 const ATTENDANCE = {
   href: '/instructor/attendance',
@@ -53,13 +57,24 @@ const EXPERIMENTS = [
 ]
 
 export default function InstructorOverview() {
+  const [showNewQuarter, setShowNewQuarter] = useState(false)
+
   return (
     <div>
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>Experiments</h2>
-        <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-          Select an experiment to view results, charts, and export data.
-        </p>
+      <div className="flex items-start justify-between mb-8">
+        <div>
+          <h2 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>Experiments</h2>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
+            Select an experiment to view results, charts, and export data.
+          </p>
+        </div>
+        <button
+          onClick={() => setShowNewQuarter(true)}
+          className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
+          style={{ background: 'transparent', border: '1px solid #fca5a5', color: '#dc2626', cursor: 'pointer' }}
+        >
+          New Quarter
+        </button>
       </div>
 
       {/* Attendance card */}
@@ -115,6 +130,8 @@ export default function InstructorOverview() {
           </Link>
         ))}
       </div>
+
+      {showNewQuarter && <NewQuarterModal onClose={() => setShowNewQuarter(false)} />}
     </div>
   )
 }
