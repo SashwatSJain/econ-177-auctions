@@ -14,6 +14,7 @@ export default function Exp5Results() {
   const [variant, setVariant] = useState<'integer' | 'continuous'>('integer')
   const [pairing, setPairing] = useState(false)
   const [resetting, setResetting] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [actionMsg, setActionMsg] = useState('')
 
   const fetchRows = useCallback(async () => {
@@ -73,6 +74,22 @@ export default function Exp5Results() {
       setActionMsg('Error pairing. Please try again.')
     } finally {
       setPairing(false)
+    }
+  }
+
+  async function handleDeleteRow(id: string, isPaired: boolean) {
+    const msg = isPaired
+      ? 'Delete this entry? Their partner will be un-paired and returned to the waiting pool.'
+      : 'Delete this entry?'
+    if (!confirm(msg)) return
+    setDeletingId(id)
+    try {
+      await fetch(`/api/beta/cv-auction?id=${id}`, { method: 'DELETE' })
+      await fetchRows()
+    } catch {
+      setActionMsg('Error deleting entry.')
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -152,7 +169,7 @@ export default function Exp5Results() {
                 <table className="w-full text-sm" style={{ minWidth: '680px', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-                      {['Pair', 'Student', 'Half Value', 'Bid', 'V', 'Outcome', 'Profit'].map((h) => (
+                      {['Pair', 'Student', 'Half Value', 'Bid', 'V', 'Outcome', 'Profit', ''].map((h) => (
                         <th key={h} className="text-left px-4 py-3 text-xs tracking-wide font-medium" style={{ color: 'var(--text-muted)' }}>{h}</th>
                       ))}
                     </tr>
@@ -188,6 +205,13 @@ export default function Exp5Results() {
                           <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--navy)', fontWeight: bothBid && winnerIsA ? 600 : 400 }}>
                             {bothBid && winnerIsA ? fmtBid(V - bidA!, variant) : bothBid ? '$0' : '—'}
                           </td>
+                          <td className="px-4 py-2.5" style={{ verticalAlign: 'middle' }}>
+                            <button onClick={() => handleDeleteRow(a.id, true)} disabled={deletingId === a.id}
+                              className="text-[10px] px-1.5 py-0.5 rounded" title="Delete entry"
+                              style={{ color: '#dc2626', border: '1px solid #fca5a5', background: 'transparent', opacity: deletingId === a.id ? 0.5 : 1 }}>
+                              ✕
+                            </button>
+                          </td>
                         </tr>,
                         <tr key={b.id}
                           style={{ background: bothBid && !winnerIsA ? 'rgba(0,54,96,0.05)' : bothBg, borderBottom: pairIdx < pairs.length - 1 ? '2px solid var(--border)' : '1px solid var(--border)' }}>
@@ -203,6 +227,13 @@ export default function Exp5Results() {
                           </td>
                           <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--navy)', fontWeight: bothBid && !winnerIsA ? 600 : 400 }}>
                             {bothBid && !winnerIsA ? fmtBid(V - bidB!, variant) : bothBid ? '$0' : '—'}
+                          </td>
+                          <td className="px-4 py-2.5" style={{ verticalAlign: 'middle' }}>
+                            <button onClick={() => handleDeleteRow(b.id, true)} disabled={deletingId === b.id}
+                              className="text-[10px] px-1.5 py-0.5 rounded" title="Delete entry"
+                              style={{ color: '#dc2626', border: '1px solid #fca5a5', background: 'transparent', opacity: deletingId === b.id ? 0.5 : 1 }}>
+                              ✕
+                            </button>
                           </td>
                         </tr>
                       ]
@@ -222,7 +253,7 @@ export default function Exp5Results() {
                 <table className="w-full text-sm" style={{ minWidth: '400px', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-                      {['Student', 'Half Value', 'Bid', 'Joined'].map((h) => (
+                      {['Student', 'Half Value', 'Bid', 'Joined', ''].map((h) => (
                         <th key={h} className="text-left px-4 py-3 text-xs tracking-wide font-medium" style={{ color: 'var(--text-muted)' }}>{h}</th>
                       ))}
                     </tr>
@@ -235,6 +266,13 @@ export default function Exp5Results() {
                         <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text)' }}>{fmtBid(Number(row.bid!), variant)}</td>
                         <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                           {new Date(row.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <button onClick={() => handleDeleteRow(row.id, false)} disabled={deletingId === row.id}
+                            className="text-[10px] px-1.5 py-0.5 rounded" title="Delete entry"
+                            style={{ color: '#dc2626', border: '1px solid #fca5a5', background: 'transparent', opacity: deletingId === row.id ? 0.5 : 1 }}>
+                            ✕
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -253,7 +291,7 @@ export default function Exp5Results() {
                 <table className="w-full text-sm" style={{ minWidth: '400px', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-                      {['Student', 'Half Value', 'Joined'].map((h) => (
+                      {['Student', 'Half Value', 'Joined', ''].map((h) => (
                         <th key={h} className="text-left px-4 py-3 text-xs tracking-wide font-medium" style={{ color: 'var(--text-muted)' }}>{h}</th>
                       ))}
                     </tr>
@@ -265,6 +303,13 @@ export default function Exp5Results() {
                         <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--navy)' }}>{fmtBid(Number(row.half_value), variant)}</td>
                         <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                           {new Date(row.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <button onClick={() => handleDeleteRow(row.id, false)} disabled={deletingId === row.id}
+                            className="text-[10px] px-1.5 py-0.5 rounded" title="Delete entry"
+                            style={{ color: '#dc2626', border: '1px solid #fca5a5', background: 'transparent', opacity: deletingId === row.id ? 0.5 : 1 }}>
+                            ✕
+                          </button>
                         </td>
                       </tr>
                     ))}

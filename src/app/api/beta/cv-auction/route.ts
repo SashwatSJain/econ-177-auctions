@@ -50,16 +50,37 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ paired, unpaired: pool.length - paired })
 }
 
-// DELETE — instructor: reset session (optionally by variant)
+// DELETE — instructor: delete one row (?id=<uuid>) or reset session (?variant=...)
 export async function DELETE(req: NextRequest) {
+  const id = req.nextUrl.searchParams.get('id')
   const variant = req.nextUrl.searchParams.get('variant')
   const admin = createAdminSupabaseClient()
-  let query = admin.from('beta_cv_auction').delete().eq('session_key', SESSION)
 
+  if (id) {
+    // Un-pair the partner before deleting
+    const { data: target } = await admin
+      .from('beta_cv_auction')
+      .select('pair_id')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (target?.pair_id) {
+      await admin
+        .from('beta_cv_auction')
+        .update({ pair_id: null, role: null })
+        .eq('pair_id', target.pair_id)
+        .neq('id', id)
+    }
+
+    const { error } = await admin.from('beta_cv_auction').delete().eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  }
+
+  let query = admin.from('beta_cv_auction').delete().eq('session_key', SESSION)
   if (variant === 'integer' || variant === 'continuous') {
     query = query.eq('variant', variant)
   }
-
   const { error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })

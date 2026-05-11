@@ -6,12 +6,13 @@ CREATE TABLE IF NOT EXISTS beta_cv_auction (
   id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   session_key TEXT        NOT NULL DEFAULT 'default',
   student_id  TEXT        NOT NULL,
-  half_value  INTEGER     NOT NULL CHECK (half_value IN (0, 3)),
-  bid         INTEGER     CHECK (bid BETWEEN 0 AND 6),
+  half_value  NUMERIC     NOT NULL CHECK (half_value >= 0 AND half_value <= 3),
+  bid         NUMERIC     CHECK (bid BETWEEN 0 AND 6),
   pair_id     UUID,
   role        TEXT        CHECK (role IN ('a', 'b')),
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT beta_cv_auction_session_student_uniq UNIQUE (session_key, student_id)
+  variant     TEXT        NOT NULL DEFAULT 'integer' CHECK (variant IN ('integer', 'continuous')),
+  CONSTRAINT beta_cv_auction_session_student_variant_uniq UNIQUE (session_key, student_id, variant)
 );
 
 CREATE INDEX IF NOT EXISTS beta_cv_auction_session_idx ON beta_cv_auction (session_key);
