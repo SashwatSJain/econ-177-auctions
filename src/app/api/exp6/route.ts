@@ -23,55 +23,45 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(data ?? [])
 }
 
-// POST { num_bidders } — instructor: group ungrouped bidders into groups of N
+// POST { student_id, bid, num_bidders } — student submits bid (idempotent)
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
+  const raw = body?.student_id
   const num_bidders = Number(body?.num_bidders)
+  const bidVal = body?.bid
 
+  if (!raw || typeof raw !== 'string') {
+    return NextResponse.json({ error: 'Missing student_id' }, { status: 400 })
+  }
   if (![2, 5, 10].includes(num_bidders)) {
     return NextResponse.json({ error: 'num_bidders must be 2, 5, or 10' }, { status: 400 })
   }
+  const bidNum = Number(bidVal)
+  if (!isFinite(bidNum) || bidNum < 0) {
+    return NextResponse.json({ error: 'bid must be a non-negative number' }, { status: 400 })
+  }
 
+  const student_id = raw.trim().toLowerCase()
+  const bid = Math.round(bidNum * 100) / 100
   const admin = createAdminSupabaseClient()
 
-  const { data: ungrouped } = await admin
+  // Return existing submission if already recorded
+  const { data: existing } = await admin
     .from('exp6_allpay')
-    .select('id')
+    .select('*')
     .eq('session_key', SESSION)
+    .eq('student_id', student_id)
     .eq('num_bidders', num_bidders)
-    .is('group_id', null)
-    .not('bid', 'is', null)
-    .order('created_at', { ascending: true })
+    .maybeSingle()
 
-  const pool = [...(ungrouped ?? [])].sort(() => Math.random() - 0.5)
-  let grouped = 0
+  if (existing) return NextResponse.json(existing)
 
-  for (let i = 0; i + num_bidders <= pool.length; i += num_bidders) {
-    const group_id = crypto.randomUUID()
-    for (let j = 0; j < num_bidders; j++) {
-      await admin
-        .from('exp6_allpay')
-        .update({ group_id, role: j + 1 })
-        .eq('id', pool[i + j].id)
-    }
-    grouped += num_bidders
-  }
+  const { data, error } = await admin
+    .from('exp6_allpay')
+    .insert({ session_key: SESSION, student_id, num_bidders, bid })
+    .select()
+    .single()
 
-  return NextResponse.json({ grouped, leftover: pool.length - grouped })
-}
-
-// DELETE ?num_bidders=N — instructor: reset session
-export async function DELETE(req: NextRequest) {
-  const nb = Number(req.nextUrl.searchParams.get('num_bidders'))
-  const admin = createAdminSupabaseClient()
-
-  let query = admin.from('exp6_allpay').delete().eq('session_key', SESSION)
-
-  if ([2, 5, 10].includes(nb)) {
-    query = query.eq('num_bidders', nb)
-  }
-
-  const { error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
+  return NextResponse.json(data, { status: 201 })
 }
