@@ -26,10 +26,7 @@ export async function POST(req: NextRequest) {
 
   if (existing) return NextResponse.json(existing)
 
-  const half_value =
-    variant === 'continuous'
-      ? Math.round(Math.random() * 300) / 100  // U[0,3] to 2 decimal places
-      : Math.random() < 0.5 ? 0 : 3
+  const half_value = Math.random() < 0.5 ? 0 : 3
 
   const { data, error } = await admin
     .from('beta_cv_auction')

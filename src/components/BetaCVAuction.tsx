@@ -236,7 +236,9 @@ export default function BetaCVAuction({ variant }: { variant: CVVariant }) {
                       ? "Your half = $3. Opponent's half is $0 or $3, so V = $3 or $6 (each equally likely)."
                       : "Your half = $0. Opponent's half is $0 or $3, so V = $0 or $3 (each equally likely)."
                   ) : (
-                    `Your half = ${fmt(entry.half_value, variant)}. Opponent's half is drawn from [0, 3], so V ∈ [${fmt(entry.half_value, variant)}, ${fmt(entry.half_value + 3, variant)}].`
+                    entry.half_value === 3
+                      ? "Your half = $3. Opponent's half is $0 or $3, so V = $3 or $6 (each equally likely)."
+                      : "Your half = $0. Opponent's half is $0 or $3, so V = $0 or $3 (each equally likely)."
                   )}
                 </p>
               </div>
@@ -613,9 +615,9 @@ function ContinuousDistNote({ className = '' }: { className?: string }) {
         Signal Structure
       </p>
       <p className="text-sm" style={{ color: 'var(--text)', lineHeight: 1.75 }}>
-        Each firm&apos;s half-value is drawn independently from a <strong>uniform distribution on [0, 3]</strong>.
-        The total well value is <em>V = your half + opponent&apos;s half</em>, so <em>V ∈ [0, 6]</em>.
-        You observe only your own half before bidding.
+        Each firm&apos;s half-value is independently <strong>$0 or $3 with equal probability</strong>.
+        The total well value is <em>V = your half + opponent&apos;s half</em>, so V ∈ {'{$0, $3, $6}'}.
+        You observe only your own half before bidding. <strong>Bids may be any number from $0 to $6</strong> (decimals allowed).
       </p>
     </div>
   )
