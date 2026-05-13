@@ -325,11 +325,6 @@ export default function Exp6Results() {
                 disabled={grouping || ungroupedSubmitted.length < tab}>
                 {grouping ? 'Grouping…' : `Group All (${ungroupedSubmitted.length} waiting)`}
               </button>
-              <button onClick={handleReset} className="text-xs px-3 py-1.5 rounded transition-all"
-                disabled={resetting || rows.length === 0}
-                style={{ background: 'transparent', border: '1px solid #fca5a5', color: '#dc2626' }}>
-                {resetting ? 'Resetting…' : 'Reset Session'}
-              </button>
               {actionMsg && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{actionMsg}</span>}
             </div>
             <button onClick={fetchRows} className="btn-ghost text-xs px-3 py-1.5 rounded" disabled={loading}>
