@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react'
 
 export type NumBidders = 2 | 5 | 10
 
-type Panel = 'identify' | 'bid' | 'done' | 'result'
+type Panel = 'identify' | 'bid' | 'done' | 'result' | 'lookup'
 
 interface GroupMember {
   id: string
@@ -41,6 +41,10 @@ export default function AllPayAuction({ numBidders }: { numBidders: NumBidders }
   const [resultData, setResultData] = useState<ResultData | null>(null)
   const [resultStatus, setResultStatus] = useState<'waiting' | 'unmatched' | 'ready'>('waiting')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [lookupPerm, setLookupPerm] = useState('')
+  const [lookupResult, setLookupResult] = useState<{ status: string; own?: GroupMember; group?: GroupMember[] } | null>(null)
+  const [lookupLoading, setLookupLoading] = useState(false)
+  const [lookupErr, setLookupErr] = useState('')
 
   useEffect(() => {
     if (panel !== 'done') {
@@ -99,6 +103,21 @@ export default function AllPayAuction({ numBidders }: { numBidders: NumBidders }
       setInputError('Network error. Please try again.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleLookup() {
+    const id = lookupPerm.trim()
+    if (!id) { setLookupErr('Enter your perm number.'); return }
+    setLookupErr(''); setLookupLoading(true); setLookupResult(null)
+    try {
+      const res = await fetch(`/api/exp6/result?student_id=${encodeURIComponent(id)}&num_bidders=${numBidders}`)
+      if (res.status === 404) { setLookupResult({ status: 'not_found' }); return }
+      setLookupResult(await res.json())
+    } catch {
+      setLookupErr('Network error. Please try again.')
+    } finally {
+      setLookupLoading(false)
     }
   }
 
@@ -165,8 +184,133 @@ export default function AllPayAuction({ numBidders }: { numBidders: NumBidders }
               >
                 Enter Auction →
               </button>
+              <p className="text-center mt-4 text-xs" style={{ color: 'var(--text-muted)' }}>
+                Already submitted?{' '}
+                <button
+                  className="underline"
+                  style={{ color: 'var(--navy)' }}
+                  onClick={() => { setLookupResult(null); setLookupErr(''); setPanel('lookup') }}
+                >
+                  Look up your result →
+                </button>
+              </p>
             </div>
           )}
+
+          {/* ── PANEL: lookup ── */}
+          {panel === 'lookup' && (() => {
+            const lWinner = lookupResult?.status === 'ready' && lookupResult.group
+              ? computeWinner(lookupResult.group)
+              : null
+            const lIsWinner = lWinner && lookupResult?.own ? lWinner.id === lookupResult.own.id : false
+            const lBid = lookupResult?.own ? Number(lookupResult.own.bid) : 0
+            const lNet = lIsWinner ? 100 - lBid : -lBid
+            return (
+              <div>
+                <button
+                  className="text-xs mb-5 flex items-center gap-1"
+                  style={{ color: 'var(--text-muted)' }}
+                  onClick={() => setPanel('identify')}
+                >
+                  ← Back
+                </button>
+                <h2 className="serif text-3xl mb-2" style={{ color: 'var(--text)' }}>Look Up Result</h2>
+                <p className="text-sm mb-5" style={{ color: 'var(--text-muted)' }}>
+                  {numBidders}-bidder all-pay auction
+                </p>
+
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="text"
+                    className="flex-1 rounded-lg px-4 py-3 text-base"
+                    placeholder="Your perm number"
+                    value={lookupPerm}
+                    onChange={(e) => { setLookupPerm(e.target.value); setLookupErr('') }}
+                    onKeyDown={(e) => e.key === 'Enter' && handleLookup()}
+                  />
+                  <button
+                    className="btn-gold rounded-lg px-5 py-3 text-sm"
+                    onClick={handleLookup}
+                    disabled={lookupLoading}
+                  >
+                    {lookupLoading ? '…' : 'Go'}
+                  </button>
+                </div>
+                {lookupErr && <p className="text-xs mb-3" style={{ color: '#dc2626' }}>{lookupErr}</p>}
+
+                {lookupResult && (
+                  <div className="mt-4 rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                    {lookupResult.status === 'not_found' && (
+                      <div className="p-5 text-sm" style={{ color: 'var(--text-muted)' }}>
+                        No record found for <strong>{lookupPerm.trim()}</strong> in this auction.
+                      </div>
+                    )}
+                    {lookupResult.status === 'waiting' && (
+                      <div className="p-5 text-sm" style={{ color: 'var(--text-muted)' }}>
+                        Your bid is recorded. Waiting for the instructor to release results.
+                      </div>
+                    )}
+                    {lookupResult.status === 'unmatched' && (
+                      <div className="p-5 text-sm" style={{ color: 'var(--text-muted)' }}>
+                        Results have been released but you were not placed in a group this round.
+                      </div>
+                    )}
+                    {lookupResult.status === 'ready' && lookupResult.own && lookupResult.group && lWinner && (
+                      <>
+                        <div className="px-4 py-3" style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+                          <span className="text-xs px-2.5 py-1 rounded-full font-semibold"
+                            style={{ background: lIsWinner ? 'var(--navy)' : '#f3f4f6', color: lIsWinner ? '#fff' : 'var(--text-muted)' }}>
+                            {lIsWinner ? '★ You Won!' : 'You Lost'}
+                          </span>
+                        </div>
+                        <div className="px-4 py-3 grid grid-cols-3 gap-3" style={{ borderBottom: '1px solid var(--border)' }}>
+                          <div>
+                            <p className="text-xs mb-0.5" style={{ color: 'var(--text-muted)' }}>Your bid</p>
+                            <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>${lBid.toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs mb-0.5" style={{ color: 'var(--text-muted)' }}>Prize</p>
+                            <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{lIsWinner ? '$100.00' : '$0.00'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs mb-0.5" style={{ color: 'var(--text-muted)' }}>Net payoff</p>
+                            <p className="text-sm font-bold" style={{ color: lNet >= 0 ? 'var(--navy)' : '#dc2626' }}>{fmt(lNet)}</p>
+                          </div>
+                        </div>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                          <thead>
+                            <tr style={{ background: 'var(--surface)' }}>
+                              {['All Bids in Group', 'Bid', 'Net'].map((h) => (
+                                <th key={h} style={{ padding: '6px 12px', textAlign: 'left', fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)' }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {lookupResult.group.map((m, i) => {
+                              const mWon = m.id === lWinner.id
+                              const mNet = mWon ? 100 - Number(m.bid) : -Number(m.bid)
+                              const isMe = m.id === lookupResult.own!.id
+                              return (
+                                <tr key={m.id} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+                                  <td style={{ padding: '7px 12px', fontFamily: 'monospace', fontSize: 12, fontWeight: isMe ? 700 : 400, color: isMe ? 'var(--navy)' : 'var(--text)' }}>
+                                    {m.student_id}
+                                    {isMe && <span className="ml-1 text-[10px]">(you)</span>}
+                                    {mWon && <span className="ml-1.5 text-[10px]" style={{ color: 'var(--navy)' }}>★</span>}
+                                  </td>
+                                  <td style={{ padding: '7px 12px', fontWeight: mWon ? 700 : 400, color: 'var(--text)' }}>${Number(m.bid).toFixed(2)}</td>
+                                  <td style={{ padding: '7px 12px', fontWeight: 600, color: mNet >= 0 ? 'var(--navy)' : '#dc2626' }}>{fmt(mNet)}</td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {/* ── PANEL: bid ── */}
           {panel === 'bid' && (
