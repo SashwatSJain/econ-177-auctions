@@ -212,7 +212,11 @@ const HOME_TABS: {
 ]
 
 export default function HomePage() {
-  const [activeTab, setActiveTab] = useState<HomeTabKey>('exp1')
+  const [activeTab, setActiveTab] = useState<HomeTabKey>(() => {
+    if (typeof window === 'undefined') return 'exp1'
+    const saved = localStorage.getItem('home-tab') as HomeTabKey | null
+    return saved && HOME_TABS.some((t) => t.key === saved) ? saved : 'exp1'
+  })
   const activeSection = HOME_TABS.find((tab) => tab.key === activeTab) ?? HOME_TABS[0]
 
   return (
@@ -232,7 +236,7 @@ export default function HomePage() {
             <button
               key={tab.key}
               type="button"
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => { setActiveTab(tab.key); localStorage.setItem('home-tab', tab.key) }}
               className="text-xs tracking-widest uppercase px-4 py-2.5 rounded-md transition-all"
               style={{
                 background: activeTab === tab.key ? 'var(--navy)' : 'var(--surface)',
