@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface CardDef {
   key: string
@@ -212,11 +212,12 @@ const HOME_TABS: {
 ]
 
 export default function HomePage() {
-  const [activeTab, setActiveTab] = useState<HomeTabKey>(() => {
-    if (typeof window === 'undefined') return 'exp1'
+  const [activeTab, setActiveTab] = useState<HomeTabKey>('exp1')
+
+  useEffect(() => {
     const saved = localStorage.getItem('home-tab') as HomeTabKey | null
-    return saved && HOME_TABS.some((t) => t.key === saved) ? saved : 'exp1'
-  })
+    if (saved && HOME_TABS.some((t) => t.key === saved)) setActiveTab(saved)
+  }, [])
   const activeSection = HOME_TABS.find((tab) => tab.key === activeTab) ?? HOME_TABS[0]
 
   return (
