@@ -214,6 +214,14 @@ export default function Exp6Results() {
   const groups = [...groupMap.values()].map((g) => g.sort((a, b) => (a.role ?? 0) - (b.role ?? 0)))
   const completeGroups = groups.filter((g) => g.length === numBidders && g.every((m) => m.bid !== null))
 
+  const allNetPayoffs = completeGroups.flatMap((g) => {
+    const w = computeWinner(g)
+    return g.map((m) => (m.id === w.id ? 100 - Number(m.bid) : -Number(m.bid)))
+  })
+  const avgProfit = allNetPayoffs.length > 0
+    ? allNetPayoffs.reduce((s, v) => s + v, 0) / allNetPayoffs.length
+    : null
+
   async function handleGroupAll() {
     if (tab === 'lookup') return
     setGrouping(true); setActionMsg('')
@@ -307,6 +315,7 @@ export default function Exp6Results() {
             <Stat label="Awaiting Group" value={ungroupedSubmitted.length} />
             <Stat label="Complete Groups" value={completeGroups.length} />
             <Stat label="Avg Bid" value={avgBid !== null ? `$${avgBid.toFixed(2)}` : '—'} />
+            <Stat label="Avg Profit" value={avgProfit !== null ? fmt(avgProfit) : '—'} />
           </div>
 
           {/* Actions */}
