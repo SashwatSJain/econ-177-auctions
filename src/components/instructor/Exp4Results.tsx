@@ -100,6 +100,8 @@ function Experiment4Charts({ rows }: { rows: Experiment4Response[] }) {
 export default function Exp4Results() {
   const [rows, setRows] = useState<Experiment4Response[]>([])
   const [loading, setLoading] = useState(false)
+  const [grouping, setGrouping] = useState(false)
+  const [groupMsg, setGroupMsg] = useState('')
 
   const fetchRows = useCallback(async () => {
     setLoading(true)
@@ -111,7 +113,30 @@ export default function Exp4Results() {
     }
   }, [])
 
+  async function handleGroupAll() {
+    setGrouping(true); setGroupMsg('')
+    try {
+      const res = await fetch('/api/experiment4/group', { method: 'POST' })
+      const json = await res.json()
+      setGroupMsg(`Grouped ${json.grouped} students. ${json.ungrouped} left without a group.`)
+      await fetchRows()
+    } catch {
+      setGroupMsg('Error grouping. Please try again.')
+    } finally {
+      setGrouping(false)
+    }
+  }
+
   useEffect(() => { fetchRows() }, [fetchRows])
+
+  // Stable group-number map: first appearance order
+  const groupNumMap = new Map<string, number>()
+  let nextGroupNum = 1
+  for (const r of rows) {
+    if (r.group_id && !groupNumMap.has(r.group_id)) {
+      groupNumMap.set(r.group_id, nextGroupNum++)
+    }
+  }
 
   const avg = (fn: (r: Experiment4Response) => number) =>
     rows.length > 0 ? rows.reduce((s, r) => s + fn(r), 0) / rows.length : null
@@ -151,13 +176,22 @@ export default function Exp4Results() {
 
       <Experiment4Charts rows={rows} />
 
-      <div className="flex gap-2 justify-end mb-4">
-        <button onClick={fetchRows} className="btn-ghost text-xs px-3 py-1.5 rounded" disabled={loading}>
-          {loading ? 'Loading…' : '↻ Refresh'}
-        </button>
-        <button onClick={handleExport} className="btn-gold text-xs px-3 py-1.5 rounded" disabled={rows.length === 0}>
-          ⬇ Excel
-        </button>
+      <div className="flex flex-wrap gap-2 items-center justify-between mb-4">
+        <div className="flex gap-2 items-center flex-wrap">
+          <button onClick={handleGroupAll} className="btn-gold text-xs px-3 py-1.5 rounded"
+            disabled={grouping || rows.filter((r) => !r.group_id).length < 10}>
+            {grouping ? 'Grouping…' : `Group All (${rows.filter((r) => !r.group_id).length} unassigned)`}
+          </button>
+          {groupMsg && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{groupMsg}</span>}
+        </div>
+        <div className="flex gap-2">
+          <button onClick={fetchRows} className="btn-ghost text-xs px-3 py-1.5 rounded" disabled={loading}>
+            {loading ? 'Loading…' : '↻ Refresh'}
+          </button>
+          <button onClick={handleExport} className="btn-gold text-xs px-3 py-1.5 rounded" disabled={rows.length === 0}>
+            ⬇ Excel
+          </button>
+        </div>
       </div>
 
       {rows.length === 0 ? (
@@ -172,7 +206,7 @@ export default function Exp4Results() {
           <table className="w-full text-sm" style={{ minWidth: '700px' }}>
             <thead>
               <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-                {['#', 'Student ID', 'Estimate', 'Bid · 1 Bidder', 'Bid · 10 Bidders', 'Bid · 100 Bidders', 'Submitted'].map((h) => (
+                {['#', 'Group', 'Student ID', 'Estimate', 'Bid · 1 Bidder', 'Bid · 10 Bidders', 'Bid · 100 Bidders', 'Submitted'].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-xs tracking-wide font-medium" style={{ color: 'var(--text-muted)' }}>{h}</th>
                 ))}
               </tr>
@@ -181,6 +215,9 @@ export default function Exp4Results() {
               {rows.map((row, i) => (
                 <tr key={row.id} style={{ background: i % 2 === 0 ? '#fff' : 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
                   <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>{i + 1}</td>
+                  <td className="px-4 py-2.5 text-xs font-mono" style={{ color: row.group_id ? 'var(--navy)' : 'var(--text-muted)' }}>
+                    {row.group_id ? `G${groupNumMap.get(row.group_id)}` : '—'}
+                  </td>
                   <td className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text)' }}>{row.student_id}</td>
                   <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text)' }}>{Number(row.estimate).toLocaleString()}</td>
                   <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--navy)', fontWeight: 500 }}>${Number(row.bid_2).toFixed(2)}</td>
