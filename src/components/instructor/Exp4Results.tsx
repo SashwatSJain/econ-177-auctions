@@ -190,9 +190,12 @@ export default function Exp4Results() {
 
       <div className="flex flex-wrap gap-2 items-center justify-between mb-4">
         <div className="flex gap-2 items-center flex-wrap">
-          <button onClick={handleGroupAll} className="btn-gold text-xs px-3 py-1.5 rounded"
-            disabled={grouping || rows.filter((r) => !r.group_id).length < 10}>
-            {grouping ? 'Grouping…' : `Group All (${rows.filter((r) => !r.group_id).length} unassigned)`}
+          <span className="text-xs px-2.5 py-1 rounded-full" style={{ background: 'rgba(0,54,96,0.08)', color: 'var(--navy)', fontWeight: 500 }}>
+            Auto-grouping on · groups of 10
+          </span>
+          <button onClick={handleGroupAll} className="btn-ghost text-xs px-3 py-1.5 rounded"
+            disabled={grouping || rows.filter((r) => !r.group_id).length === 0}>
+            {grouping ? 'Grouping…' : `Group Remainder (${rows.filter((r) => !r.group_id).length} unassigned)`}
           </button>
           {groupMsg && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{groupMsg}</span>}
         </div>

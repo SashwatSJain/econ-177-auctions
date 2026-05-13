@@ -50,6 +50,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // Auto-group: if 10+ ungrouped submissions exist, form one new group
+  const { data: ungrouped } = await admin
+    .from('experiment4_responses')
+    .select('id')
+    .is('group_id', null)
+    .order('created_at', { ascending: true })
+
+  if (ungrouped && ungrouped.length >= 10) {
+    const group_id = crypto.randomUUID()
+    const ids = ungrouped.slice(0, 10).map((r) => r.id)
+    await admin.from('experiment4_responses').update({ group_id }).in('id', ids)
+  }
+
   return NextResponse.json(data, { status: 201 })
 }
 
