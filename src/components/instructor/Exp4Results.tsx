@@ -102,6 +102,7 @@ export default function Exp4Results() {
   const [loading, setLoading] = useState(false)
   const [grouping, setGrouping] = useState(false)
   const [groupMsg, setGroupMsg] = useState('')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const fetchRows = useCallback(async () => {
     setLoading(true)
@@ -112,6 +113,17 @@ export default function Exp4Results() {
       setLoading(false)
     }
   }, [])
+
+  async function handleDelete(id: string) {
+    if (!confirm('Delete this submission?')) return
+    setDeletingId(id)
+    try {
+      await fetch(`/api/experiment4?id=${id}`, { method: 'DELETE' })
+      await fetchRows()
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   async function handleGroupAll() {
     setGrouping(true); setGroupMsg('')
@@ -206,7 +218,7 @@ export default function Exp4Results() {
           <table className="w-full text-sm" style={{ minWidth: '700px' }}>
             <thead>
               <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-                {['#', 'Group', 'Student ID', 'Estimate', 'Bid · 1 Bidder', 'Bid · 10 Bidders', 'Bid · 100 Bidders', 'Submitted'].map((h) => (
+                {['#', 'Group', 'Student ID', 'Estimate', 'Bid · 1 Bidder', 'Bid · 10 Bidders', 'Bid · 100 Bidders', 'Submitted', ''].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-xs tracking-wide font-medium" style={{ color: 'var(--text-muted)' }}>{h}</th>
                 ))}
               </tr>
@@ -225,6 +237,13 @@ export default function Exp4Results() {
                   <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--navy)', fontWeight: 500 }}>${Number(row.bid_100).toFixed(2)}</td>
                   <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                     {new Date(row.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <button onClick={() => handleDelete(row.id)} disabled={deletingId === row.id}
+                      className="text-[10px] px-1.5 py-0.5 rounded" title="Delete"
+                      style={{ color: '#dc2626', border: '1px solid #fca5a5', background: 'transparent', opacity: deletingId === row.id ? 0.5 : 1 }}>
+                      ✕
+                    </button>
                   </td>
                 </tr>
               ))}

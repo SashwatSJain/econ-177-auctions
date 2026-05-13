@@ -52,3 +52,14 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json(data, { status: 201 })
 }
+
+// DELETE /api/experiment4?id=<uuid>
+export async function DELETE(req: NextRequest) {
+  const id = req.nextUrl.searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+
+  const admin = createAdminSupabaseClient()
+  const { error } = await admin.from('experiment4_responses').delete().eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
