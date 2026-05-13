@@ -1,15 +1,33 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 export type NumBidders = 2 | 5 | 10
 
-type Panel = 'identify' | 'bid' | 'done'
+type Panel = 'identify' | 'bid' | 'done' | 'result'
+
+interface GroupMember {
+  id: string
+  student_id: string
+  bid: number
+  role: number
+}
+
+interface ResultData {
+  own: GroupMember
+  group: GroupMember[]
+}
 
 function fmt(n: number) {
   if (n < 0) return `-$${(-n).toFixed(2)}`
   return `$${n.toFixed(2)}`
+}
+
+function computeWinner(group: GroupMember[]): GroupMember {
+  return group.reduce((best, m) =>
+    m.bid > best.bid || (m.bid === best.bid && m.role < best.role) ? m : best
+  )
 }
 
 export default function AllPayAuction({ numBidders }: { numBidders: NumBidders }) {
@@ -20,6 +38,34 @@ export default function AllPayAuction({ numBidders }: { numBidders: NumBidders }
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [inputError, setInputError] = useState('')
+  const [resultData, setResultData] = useState<ResultData | null>(null)
+  const [resultStatus, setResultStatus] = useState<'waiting' | 'unmatched' | 'ready'>('waiting')
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    if (panel !== 'done') {
+      if (pollRef.current) clearInterval(pollRef.current)
+      return
+    }
+    async function poll() {
+      const res = await fetch(
+        `/api/exp6/result?student_id=${encodeURIComponent(studentId.trim())}&num_bidders=${numBidders}`
+      )
+      if (!res.ok) return
+      const json = await res.json()
+      if (json.status === 'ready') {
+        setResultData(json)
+        setResultStatus('ready')
+        setPanel('result')
+        if (pollRef.current) clearInterval(pollRef.current)
+      } else if (json.status === 'unmatched') {
+        setResultStatus('unmatched')
+      }
+    }
+    poll()
+    pollRef.current = setInterval(poll, 3000)
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [panel, studentId, numBidders])
 
   function handleIdentify() {
     const id = studentId.trim()
@@ -172,7 +218,7 @@ export default function AllPayAuction({ numBidders }: { numBidders: NumBidders }
             </div>
           )}
 
-          {/* ── PANEL: done ── */}
+          {/* ── PANEL: done (waiting for group) ── */}
           {panel === 'done' && (
             <div className="text-center">
               <div
@@ -192,8 +238,96 @@ export default function AllPayAuction({ numBidders }: { numBidders: NumBidders }
               <p className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>
                 Perm: {studentId.trim()}
               </p>
+              <div className="mt-6 rounded-xl px-5 py-4 text-sm" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                {resultStatus === 'unmatched' ? (
+                  <p style={{ color: 'var(--text-muted)' }}>
+                    Results have been released but you were not placed in a group this round.
+                  </p>
+                ) : (
+                  <p style={{ color: 'var(--text-muted)' }}>
+                    Waiting for the instructor to release results…
+                    <span className="block mt-1 text-xs">This page will update automatically.</span>
+                  </p>
+                )}
+              </div>
             </div>
           )}
+
+          {/* ── PANEL: result ── */}
+          {panel === 'result' && resultData && (() => {
+            const winner = computeWinner(resultData.group)
+            const isWinner = winner.id === resultData.own.id
+            const myBid = Number(resultData.own.bid)
+            const myNet = isWinner ? 100 - myBid : -myBid
+            return (
+              <div>
+                <div className="text-center mb-6">
+                  <div
+                    className="mb-4 w-14 h-14 rounded-full flex items-center justify-center mx-auto"
+                    style={{ background: isWinner ? 'var(--navy)' : 'var(--surface)', border: '2px solid var(--navy)' }}
+                  >
+                    <span className="text-lg" style={{ color: isWinner ? '#fff' : 'var(--navy)' }}>{isWinner ? '★' : '—'}</span>
+                  </div>
+                  <h2 className="serif text-3xl mb-1" style={{ color: 'var(--text)' }}>
+                    {isWinner ? 'You Won!' : 'Results'}
+                  </h2>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Perm: {studentId.trim()}</p>
+                </div>
+
+                <div className="rounded-xl px-5 py-4 mb-5" style={{ background: 'var(--surface)', border: `2px solid ${isWinner ? 'var(--navy)' : 'var(--border)'}` }}>
+                  <p className="text-xs uppercase tracking-widest mb-3" style={{ color: 'var(--navy)', fontWeight: 600 }}>Your Outcome</p>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Your bid</p>
+                      <p className="font-semibold" style={{ color: 'var(--text)' }}>{fmt(myBid)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Prize won</p>
+                      <p className="font-semibold" style={{ color: 'var(--text)' }}>{isWinner ? '$100.00' : '$0.00'}</p>
+                    </div>
+                    <div className="col-span-2" style={{ borderTop: '1px solid var(--border)', paddingTop: '0.5rem' }}>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Net payoff</p>
+                      <p className="text-lg font-bold" style={{ color: myNet >= 0 ? 'var(--navy)' : '#dc2626' }}>
+                        {fmt(myNet)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                  <p className="text-xs uppercase tracking-widest px-4 py-2.5" style={{ background: 'var(--surface)', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)' }}>
+                    All Bids in Your Group
+                  </p>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: 'var(--surface)' }}>
+                        {['Bidder', 'Bid', 'Outcome'].map((h) => (
+                          <th key={h} style={{ padding: '7px 12px', textAlign: 'left', fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {resultData.group.map((m, i) => {
+                        const mWon = m.id === winner.id
+                        const isMe = m.id === resultData.own.id
+                        return (
+                          <tr key={m.id} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+                            <td style={{ padding: '7px 12px', color: isMe ? 'var(--navy)' : 'var(--text)', fontWeight: isMe ? 700 : 400, fontSize: 12, fontFamily: 'monospace' }}>
+                              {m.student_id}{isMe && <span className="ml-1.5 text-[10px]" style={{ color: 'var(--navy)' }}>(you)</span>}
+                            </td>
+                            <td style={{ padding: '7px 12px', color: 'var(--text)', fontWeight: mWon ? 700 : 400 }}>{fmt(Number(m.bid))}</td>
+                            <td style={{ padding: '7px 12px', color: mWon ? 'var(--navy)' : '#dc2626', fontWeight: mWon ? 700 : 400 }}>
+                              {mWon ? '★ Won' : 'Lost'}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          })()}
 
         </div>
       </main>

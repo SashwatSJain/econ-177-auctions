@@ -65,3 +65,43 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data, { status: 201 })
 }
+
+// DELETE ?id=<uuid> — delete a single row (un-groups rest of group first)
+//         ?num_bidders=N — reset all entries for that num_bidders
+export async function DELETE(req: NextRequest) {
+  const id = req.nextUrl.searchParams.get('id')
+  const nb = Number(req.nextUrl.searchParams.get('num_bidders'))
+  const admin = createAdminSupabaseClient()
+
+  if (id) {
+    const { data: target } = await admin
+      .from('exp6_allpay')
+      .select('group_id')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (target?.group_id) {
+      await admin
+        .from('exp6_allpay')
+        .update({ group_id: null, role: null })
+        .eq('group_id', target.group_id)
+        .neq('id', id)
+    }
+
+    const { error } = await admin.from('exp6_allpay').delete().eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  }
+
+  if ([2, 5, 10].includes(nb)) {
+    const { error } = await admin
+      .from('exp6_allpay')
+      .delete()
+      .eq('session_key', SESSION)
+      .eq('num_bidders', nb)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  }
+
+  return NextResponse.json({ error: 'Provide id or num_bidders' }, { status: 400 })
+}
