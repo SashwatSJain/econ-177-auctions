@@ -115,6 +115,49 @@ export async function GET(req: NextRequest) {
       csv: [headers.join(','), ...rows].join('\n'),
       filename: `${netid}-${dataset.filenameSuffix}.csv`,
     }
+  } else if (dataset.key === 'exp4-group') {
+    const { data: own, error: ownError } = await supabase
+      .from('experiment4_responses')
+      .select('*')
+      .eq('student_id', netid)
+      .maybeSingle()
+
+    if (ownError) {
+      return NextResponse.json({ error: ownError.message }, { status: 500 })
+    }
+    if (!own) {
+      return NextResponse.json({ empty: true }, { status: 404 })
+    }
+    if (!own.group_id) {
+      return NextResponse.json({ error: 'You have not been assigned to a group yet.' }, { status: 404 })
+    }
+
+    const { data: groupRows, error: groupError } = await supabase
+      .from('experiment4_responses')
+      .select('*')
+      .eq('group_id', own.group_id)
+      .order('created_at', { ascending: true })
+
+    if (groupError) {
+      return NextResponse.json({ error: groupError.message }, { status: 500 })
+    }
+
+    const headers = ['student_id', 'estimate', 'bid_2', 'bid_10', 'bid_100']
+    let anonCounter = 1
+    const rows = (groupRows ?? []).map((row) => {
+      const label = row.student_id === netid ? netid : `Bidder ${anonCounter++}`
+      return serializeCsvRow(headers, {
+        student_id: label,
+        estimate: row.estimate,
+        bid_2: row.bid_2,
+        bid_10: row.bid_10,
+        bid_100: row.bid_100,
+      })
+    })
+    csvPayload = {
+      csv: [headers.join(','), ...rows].join('\n'),
+      filename: `${netid}-${dataset.filenameSuffix}.csv`,
+    }
   } else {
     const { data: experiment3Rows, error: experiment3Error } = await supabase
       .from('experiment3_rounds')
