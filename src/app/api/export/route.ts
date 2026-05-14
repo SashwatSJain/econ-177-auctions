@@ -116,39 +116,63 @@ export async function GET(req: NextRequest) {
       filename: `${netid}-${dataset.filenameSuffix}.csv`,
     }
   } else if (dataset.key === 'exp4-group') {
+    const admin = createAdminSupabaseClient()
+
+    // Fetch student's own row first
     const { data: own, error: ownError } = await supabase
       .from('experiment4_responses')
       .select('*')
       .eq('student_id', netid)
       .maybeSingle()
 
-    if (ownError) {
-      return NextResponse.json({ error: ownError.message }, { status: 500 })
-    }
-    if (!own) {
-      return NextResponse.json({ empty: true }, { status: 404 })
-    }
-    if (!own.group_id) {
-      return NextResponse.json({ error: 'You have not been assigned to a group yet.' }, { status: 404 })
+    if (ownError) return NextResponse.json({ error: ownError.message }, { status: 500 })
+    if (!own) return NextResponse.json({ empty: true }, { status: 404 })
+
+    // Check for existing sample assignment
+    const { data: existingSample } = await admin
+      .from('experiment4_samples')
+      .select('ref_id')
+      .eq('student_id', netid)
+
+    let sampleRefIds: string[]
+
+    if (existingSample && existingSample.length > 0) {
+      sampleRefIds = existingSample.map((s: { ref_id: string }) => s.ref_id)
+    } else {
+      // Lazy assignment: pick 9 random other students' rows
+      const { data: pool } = await admin
+        .from('experiment4_responses')
+        .select('id')
+        .neq('student_id', netid)
+
+      const shuffled = (pool ?? []).sort(() => Math.random() - 0.5).slice(0, 9)
+      const othersIds = shuffled.map((r: { id: string }) => r.id)
+      // Always include own row
+      sampleRefIds = [...othersIds, own.id]
+
+      if (othersIds.length > 0) {
+        await admin.from('experiment4_samples').insert(
+          sampleRefIds.map((ref_id) => ({ student_id: netid, ref_id }))
+        )
+      }
     }
 
-    const { data: groupRows, error: groupError } = await supabase
+    const { data: sampleRows, error: sampleError } = await admin
       .from('experiment4_responses')
-      .select('*')
-      .eq('group_id', own.group_id)
-      .order('created_at', { ascending: true })
+      .select('student_id, estimate, bid_10')
+      .in('id', sampleRefIds)
 
-    if (groupError) {
-      return NextResponse.json({ error: groupError.message }, { status: 500 })
-    }
+    if (sampleError) return NextResponse.json({ error: sampleError.message }, { status: 500 })
 
-    const headers = ['student_id', 'bid_10']
-    const others = (groupRows ?? []).filter((r) => r.student_id !== netid)
-    const me = (groupRows ?? []).find((r) => r.student_id === netid)
+    const headers = ['student_id', 'estimate', 'bid_10']
+    const others = (sampleRows ?? []).filter((r: { student_id: string }) => r.student_id !== netid)
+    const me = (sampleRows ?? []).find((r: { student_id: string }) => r.student_id === netid)
     let anonCounter = 1
     const rows = [
-      ...others.map((row) => serializeCsvRow(headers, { student_id: `Bidder ${anonCounter++}`, bid_10: row.bid_10 })),
-      ...(me ? [serializeCsvRow(headers, { student_id: netid, bid_10: me.bid_10 })] : []),
+      ...others.map((row: { student_id: string; estimate: number; bid_10: number }) =>
+        serializeCsvRow(headers, { student_id: `Bidder ${anonCounter++}`, estimate: row.estimate, bid_10: row.bid_10 })
+      ),
+      ...(me ? [serializeCsvRow(headers, { student_id: netid, estimate: me.estimate, bid_10: me.bid_10 })] : []),
     ]
     csvPayload = {
       csv: [headers.join(','), ...rows].join('\n'),

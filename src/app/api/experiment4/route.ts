@@ -4,13 +4,40 @@ import { createAdminSupabaseClient } from '@/lib/supabase-admin'
 // GET /api/experiment4 — returns all rows (instructor use)
 export async function GET() {
   const admin = createAdminSupabaseClient()
-  const { data, error } = await admin
-    .from('experiment4_responses')
-    .select('*')
-    .order('created_at', { ascending: true })
+  const [{ data, error }, { data: allSamples }] = await Promise.all([
+    admin.from('experiment4_responses').select('*').order('created_at', { ascending: true }),
+    admin.from('experiment4_samples').select('student_id, ref_id, created_at').order('created_at', { ascending: true }),
+  ])
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data ?? [])
+
+  // Fetch the referenced rows for all assigned samples
+  const refIds = [...new Set((allSamples ?? []).map((s) => s.ref_id))]
+  const { data: refRows } = refIds.length > 0
+    ? await admin.from('experiment4_responses').select('id, student_id, estimate, bid_10').in('id', refIds)
+    : { data: [] }
+
+  const refMap = new Map((refRows ?? []).map((r) => [r.id, r]))
+
+  // Per-student: download time + ordered sample rows
+  const downloadMap = new Map<string, string>()
+  const sampleMap = new Map<string, { student_id: string; estimate: number; bid_10: number }[]>()
+  for (const s of allSamples ?? []) {
+    if (!downloadMap.has(s.student_id)) downloadMap.set(s.student_id, s.created_at)
+    const ref = refMap.get(s.ref_id)
+    if (ref) {
+      if (!sampleMap.has(s.student_id)) sampleMap.set(s.student_id, [])
+      sampleMap.get(s.student_id)!.push({ student_id: ref.student_id, estimate: ref.estimate, bid_10: ref.bid_10 })
+    }
+  }
+
+  return NextResponse.json(
+    (data ?? []).map((r) => ({
+      ...r,
+      downloaded_at: downloadMap.get(r.student_id) ?? null,
+      sample: sampleMap.get(r.student_id) ?? null,
+    }))
+  )
 }
 
 // POST /api/experiment4
@@ -48,19 +75,6 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-
-  // Auto-group: if 10+ ungrouped submissions exist, form one new group
-  const { data: ungrouped } = await admin
-    .from('experiment4_responses')
-    .select('id')
-    .is('group_id', null)
-    .order('created_at', { ascending: true })
-
-  if (ungrouped && ungrouped.length >= 10) {
-    const group_id = crypto.randomUUID()
-    const ids = ungrouped.slice(0, 10).map((r) => r.id)
-    await admin.from('experiment4_responses').update({ group_id }).in('id', ids)
   }
 
   return NextResponse.json(data, { status: 201 })

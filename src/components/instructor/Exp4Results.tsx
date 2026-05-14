@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Fragment } from 'react'
 import { Stat, Exp4ScatterChart, filterExp4Outliers } from './charts'
 import type { Experiment4Response } from '@/lib/types'
 
@@ -100,9 +100,16 @@ function Experiment4Charts({ rows }: { rows: Experiment4Response[] }) {
 export default function Exp4Results() {
   const [rows, setRows] = useState<Experiment4Response[]>([])
   const [loading, setLoading] = useState(false)
-  const [grouping, setGrouping] = useState(false)
-  const [groupMsg, setGroupMsg] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+
+  function toggleExpand(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
 
   const fetchRows = useCallback(async () => {
     setLoading(true)
@@ -125,30 +132,7 @@ export default function Exp4Results() {
     }
   }
 
-  async function handleGroupAll() {
-    setGrouping(true); setGroupMsg('')
-    try {
-      const res = await fetch('/api/experiment4/group', { method: 'POST' })
-      const json = await res.json()
-      setGroupMsg(`Grouped ${json.grouped} students. ${json.ungrouped} left without a group.`)
-      await fetchRows()
-    } catch {
-      setGroupMsg('Error grouping. Please try again.')
-    } finally {
-      setGrouping(false)
-    }
-  }
-
   useEffect(() => { fetchRows() }, [fetchRows])
-
-  // Stable group-number map: first appearance order
-  const groupNumMap = new Map<string, number>()
-  let nextGroupNum = 1
-  for (const r of rows) {
-    if (r.group_id && !groupNumMap.has(r.group_id)) {
-      groupNumMap.set(r.group_id, nextGroupNum++)
-    }
-  }
 
   const avg = (fn: (r: Experiment4Response) => number) =>
     rows.length > 0 ? rows.reduce((s, r) => s + fn(r), 0) / rows.length : null
@@ -186,27 +170,13 @@ export default function Exp4Results() {
         <Stat label="Avg Bid · 100 Bidders" value={avgBid100 != null ? `$${fmt(avgBid100)}` : '—'} />
       </div>
 
-      <Experiment4Charts rows={rows} />
-
-      <div className="flex flex-wrap gap-2 items-center justify-between mb-4">
-        <div className="flex gap-2 items-center flex-wrap">
-          <span className="text-xs px-2.5 py-1 rounded-full" style={{ background: 'rgba(0,54,96,0.08)', color: 'var(--navy)', fontWeight: 500 }}>
-            Auto-grouping on · groups of 10
-          </span>
-          <button onClick={handleGroupAll} className="btn-ghost text-xs px-3 py-1.5 rounded"
-            disabled={grouping || rows.filter((r) => !r.group_id).length === 0}>
-            {grouping ? 'Grouping…' : `Group Remainder (${rows.filter((r) => !r.group_id).length} unassigned)`}
-          </button>
-          {groupMsg && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{groupMsg}</span>}
-        </div>
-        <div className="flex gap-2">
-          <button onClick={fetchRows} className="btn-ghost text-xs px-3 py-1.5 rounded" disabled={loading}>
-            {loading ? 'Loading…' : '↻ Refresh'}
-          </button>
-          <button onClick={handleExport} className="btn-gold text-xs px-3 py-1.5 rounded" disabled={rows.length === 0}>
-            ⬇ Excel
-          </button>
-        </div>
+<div className="flex gap-2 justify-end mb-4">
+        <button onClick={fetchRows} className="btn-ghost text-xs px-3 py-1.5 rounded" disabled={loading}>
+          {loading ? 'Loading…' : '↻ Refresh'}
+        </button>
+        <button onClick={handleExport} className="btn-gold text-xs px-3 py-1.5 rounded" disabled={rows.length === 0}>
+          ⬇ Excel
+        </button>
       </div>
 
       {rows.length === 0 ? (
@@ -221,35 +191,76 @@ export default function Exp4Results() {
           <table className="w-full text-sm" style={{ minWidth: '700px' }}>
             <thead>
               <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-                {['#', 'Group', 'Student ID', 'Estimate', 'Bid · 1 Bidder', 'Bid · 10 Bidders', 'Bid · 100 Bidders', 'Submitted', ''].map((h) => (
+                {['#', 'Student ID', 'Estimate', 'Bid · 1 Bidder', 'Bid · 10 Bidders', 'Bid · 100 Bidders', 'Submitted', 'Downloaded', ''].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-xs tracking-wide font-medium" style={{ color: 'var(--text-muted)' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, i) => (
-                <tr key={row.id} style={{ background: i % 2 === 0 ? '#fff' : 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>{i + 1}</td>
-                  <td className="px-4 py-2.5 text-xs font-mono" style={{ color: row.group_id ? 'var(--navy)' : 'var(--text-muted)' }}>
-                    {row.group_id ? `G${groupNumMap.get(row.group_id)}` : '—'}
-                  </td>
-                  <td className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text)' }}>{row.student_id}</td>
-                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text)' }}>{Number(row.estimate).toLocaleString()}</td>
-                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--navy)', fontWeight: 500 }}>${Number(row.bid_2).toFixed(2)}</td>
-                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--navy)', fontWeight: 500 }}>${Number(row.bid_10).toFixed(2)}</td>
-                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--navy)', fontWeight: 500 }}>${Number(row.bid_100).toFixed(2)}</td>
-                  <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {new Date(row.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <button onClick={() => handleDelete(row.id)} disabled={deletingId === row.id}
-                      className="text-[10px] px-1.5 py-0.5 rounded" title="Delete"
-                      style={{ color: '#dc2626', border: '1px solid #fca5a5', background: 'transparent', opacity: deletingId === row.id ? 0.5 : 1 }}>
-                      ✕
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {rows.map((row, i) => {
+                const isExpanded = expanded.has(row.id)
+                const rowBg = i % 2 === 0 ? '#fff' : 'var(--surface)'
+                return (
+                  <Fragment key={row.id}>
+                    <tr style={{ background: rowBg, borderBottom: isExpanded ? 'none' : '1px solid var(--border)' }}>
+                      <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>{i + 1}</td>
+                      <td className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text)' }}>{row.student_id}</td>
+                      <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text)' }}>{Number(row.estimate).toLocaleString()}</td>
+                      <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--navy)', fontWeight: 500 }}>${Number(row.bid_2).toFixed(2)}</td>
+                      <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--navy)', fontWeight: 500 }}>${Number(row.bid_10).toFixed(2)}</td>
+                      <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--navy)', fontWeight: 500 }}>${Number(row.bid_100).toFixed(2)}</td>
+                      <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                        {new Date(row.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs"
+                        onClick={() => row.sample && toggleExpand(row.id)}
+                        style={{ color: row.downloaded_at ? 'var(--navy)' : 'var(--text-muted)', cursor: row.sample ? 'pointer' : undefined }}>
+                        {row.downloaded_at
+                          ? new Date(row.downloaded_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                          : '—'}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex gap-1.5 items-center">
+                          <button onClick={() => handleDelete(row.id)} disabled={deletingId === row.id}
+                            className="text-[10px] px-1.5 py-0.5 rounded" title="Delete"
+                            style={{ color: '#dc2626', border: '1px solid #fca5a5', background: 'transparent', opacity: deletingId === row.id ? 0.5 : 1 }}>
+                            ✕
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {isExpanded && row.sample && (
+                      <tr key={`${row.id}-sample`} style={{ background: rowBg, borderBottom: '1px solid var(--border)' }}>
+                        <td colSpan={9} className="px-6 pb-3 pt-0">
+                          <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr style={{ background: 'var(--surface)' }}>
+                                  {['#', 'Student', 'Estimate', 'Bid · 10 Bidders'].map((h) => (
+                                    <th key={h} className="text-left px-3 py-2 font-medium tracking-wide" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {row.sample.map((s, j) => (
+                                  <tr key={j} style={{ borderTop: '1px solid var(--border)' }}>
+                                    <td className="px-3 py-1.5" style={{ color: 'var(--text-muted)' }}>{j + 1}</td>
+                                    <td className="px-3 py-1.5 font-medium" style={{ color: s.student_id === row.student_id ? 'var(--navy)' : 'var(--text)' }}>
+                                      {s.student_id === row.student_id ? `${s.student_id} (own)` : s.student_id}
+                                    </td>
+                                    <td className="px-3 py-1.5" style={{ color: 'var(--text)' }}>{Number(s.estimate).toLocaleString()}</td>
+                                    <td className="px-3 py-1.5" style={{ color: 'var(--navy)', fontWeight: 500 }}>${Number(s.bid_10).toFixed(2)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
             </tbody>
           </table>
         </div>

@@ -46,8 +46,9 @@ export interface Experiment4Response {
   bid_2: number
   bid_10: number
   bid_100: number
-  group_id: string | null
   created_at: string
+  downloaded_at: string | null
+  sample: { student_id: string; estimate: number; bid_10: number }[] | null
 }
 
 export interface RiskAversionResponse {
