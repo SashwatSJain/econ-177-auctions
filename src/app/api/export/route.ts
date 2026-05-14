@@ -142,18 +142,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: groupError.message }, { status: 500 })
     }
 
-    const headers = ['student_id', 'estimate', 'bid_2', 'bid_10', 'bid_100']
+    const headers = ['student_id', 'bid_10']
+    const others = (groupRows ?? []).filter((r) => r.student_id !== netid)
+    const me = (groupRows ?? []).find((r) => r.student_id === netid)
     let anonCounter = 1
-    const rows = (groupRows ?? []).map((row) => {
-      const label = row.student_id === netid ? netid : `Bidder ${anonCounter++}`
-      return serializeCsvRow(headers, {
-        student_id: label,
-        estimate: row.estimate,
-        bid_2: row.bid_2,
-        bid_10: row.bid_10,
-        bid_100: row.bid_100,
-      })
-    })
+    const rows = [
+      ...others.map((row) => serializeCsvRow(headers, { student_id: `Bidder ${anonCounter++}`, bid_10: row.bid_10 })),
+      ...(me ? [serializeCsvRow(headers, { student_id: netid, bid_10: me.bid_10 })] : []),
+    ]
     csvPayload = {
       csv: [headers.join(','), ...rows].join('\n'),
       filename: `${netid}-${dataset.filenameSuffix}.csv`,
