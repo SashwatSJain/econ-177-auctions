@@ -608,3 +608,151 @@ export function Exp5BidCdfChart({ bids0, bids3 }: { bids0: number[]; bids3: numb
     </div>
   )
 }
+
+// ── Experiment 6 Bid CDF chart ───────────────────────────────────────────────
+
+const E6_X_MAX = 100
+const E6_W = 520
+const E6_H = 300
+const E6_PAD = { top: 32, right: 24, bottom: 48, left: 52 }
+const E6_IW = E6_W - E6_PAD.left - E6_PAD.right
+const E6_IH = E6_H - E6_PAD.top - E6_PAD.bottom
+
+const e6sx = (x: number) => E6_PAD.left + (x / E6_X_MAX) * E6_IW
+const e6sy = (p: number) => E6_PAD.top + (1 - p) * E6_IH
+
+function e6CdfPts(bids: number[]): [number, number][] {
+  if (bids.length === 0) return []
+  const sorted = [...bids].sort((a, b) => a - b)
+  const n = sorted.length
+  const pts: [number, number][] = [[0, 0]]
+  let i = 0
+  while (i < n) {
+    const val = sorted[i]
+    let j = i
+    while (j < n && sorted[j] === val) j++
+    pts.push([val, i / n])
+    pts.push([val, j / n])
+    i = j
+  }
+  pts.push([E6_X_MAX, 1])
+  return pts
+}
+
+function e6Poly(pts: [number, number][]): string {
+  return pts.map(([x, p]) => `${e6sx(x).toFixed(1)},${e6sy(p).toFixed(1)}`).join(' ')
+}
+
+// F(b) = (b/100)^(1/(N-1)) for b in [0,100]
+function e6EqPts(n: number): [number, number][] {
+  const exp = 1 / (n - 1)
+  const pts: [number, number][] = []
+  for (let i = 0; i <= 200; i++) {
+    const b = (i / 200) * E6_X_MAX
+    pts.push([b, Math.pow(b / E6_X_MAX, exp)])
+  }
+  return pts
+}
+
+const E6_SERIES = [
+  { n: 2,  empColor: '#111827', label: '2 bidders' },
+  { n: 5,  empColor: '#dc2626', label: '5 bidders' },
+  { n: 10, empColor: '#0891b2', label: '10 bidders' },
+] as const
+
+const E6_Y_TICKS = [0, 0.2, 0.4, 0.6, 0.8, 1.0]
+const E6_X_TICKS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+const E6_EQ_COLOR = '#9ca3af'
+
+export function Exp6BidCdfChart({ bids2, bids5, bids10 }: { bids2: number[]; bids5: number[]; bids10: number[] }) {
+  const allBids = [bids2, bids5, bids10]
+  const hasAny = allBids.some((b) => b.length > 0)
+
+  return (
+    <div>
+      <p className="text-xs uppercase tracking-widest mb-3 text-center"
+        style={{ color: 'var(--text-muted)', fontWeight: 600 }}>
+        Empirical Bid CDFs by Auction Size
+      </p>
+      <svg viewBox={`0 0 ${E6_W} ${E6_H}`} style={{ display: 'block', width: '100%' }}>
+        {/* Grid lines */}
+        {E6_Y_TICKS.map((p) => (
+          <line key={p} x1={E6_PAD.left} y1={e6sy(p)} x2={E6_PAD.left + E6_IW} y2={e6sy(p)}
+            stroke="#e5e7eb" strokeWidth={1} />
+        ))}
+        {E6_X_TICKS.map((x) => (
+          <line key={x} x1={e6sx(x)} y1={E6_PAD.top} x2={e6sx(x)} y2={E6_PAD.top + E6_IH}
+            stroke="#f0f1f3" strokeWidth={0.5} />
+        ))}
+
+        {/* Y-axis labels */}
+        {E6_Y_TICKS.map((p) => (
+          <text key={p} x={E6_PAD.left - 6} y={e6sy(p) + 4}
+            textAnchor="end" fontSize={9} fill="#6b7280">
+            {(p * 100).toFixed(0)}%
+          </text>
+        ))}
+        {/* X-axis labels */}
+        {E6_X_TICKS.map((x) => (
+          <text key={x} x={e6sx(x)} y={E6_PAD.top + E6_IH + 14}
+            textAnchor="middle" fontSize={9} fill="#6b7280">
+            {x}
+          </text>
+        ))}
+
+        {/* Axis titles */}
+        <text x={10} y={E6_PAD.top + E6_IH / 2}
+          textAnchor="middle" fontSize={9} fill="#6b7280"
+          transform={`rotate(-90, 10, ${E6_PAD.top + E6_IH / 2})`}>
+          Cumulative probability
+        </text>
+        <text x={E6_PAD.left + E6_IW / 2} y={E6_H - 4}
+          textAnchor="middle" fontSize={9} fill="#6b7280">
+          Bid ($)
+        </text>
+
+        {/* Equilibrium curves (dashed) */}
+        {E6_SERIES.map(({ n }) => (
+          <polyline key={`eq-${n}`}
+            points={e6Poly(e6EqPts(n))}
+            fill="none" stroke={E6_EQ_COLOR} strokeWidth={1.5} strokeDasharray="6 3" />
+        ))}
+
+        {/* Empirical CDF curves */}
+        {E6_SERIES.map(({ n, empColor }, i) => {
+          const pts = e6CdfPts(allBids[i])
+          if (pts.length === 0) return null
+          return (
+            <polyline key={`emp-${n}`}
+              points={e6Poly(pts)}
+              fill="none" stroke={empColor} strokeWidth={2.5}
+              strokeLinejoin="miter" strokeLinecap="square" />
+          )
+        })}
+
+        {!hasAny && (
+          <text x={E6_PAD.left + E6_IW / 2} y={E6_PAD.top + E6_IH / 2}
+            textAnchor="middle" fontSize={11} fill="#9ca3af">
+            No bids yet
+          </text>
+        )}
+
+        {/* Legend */}
+        <g transform={`translate(${E6_PAD.left + 6}, ${E6_PAD.top + 6})`}>
+          <rect x={0} y={0} width={118} height={84} rx={3}
+            fill="white" fillOpacity={0.92} stroke="#e5e7eb" strokeWidth={0.5} />
+          {E6_SERIES.map(({ empColor, label }, i) => (
+            <g key={label} transform={`translate(0, ${i * 20})`}>
+              <line x1={6} y1={13} x2={22} y2={13} stroke={empColor} strokeWidth={2.5} />
+              <text x={27} y={17} fontSize={9} fill="#374151">{label}</text>
+            </g>
+          ))}
+          <g transform="translate(0, 60)">
+            <line x1={6} y1={13} x2={22} y2={13} stroke={E6_EQ_COLOR} strokeWidth={1.5} strokeDasharray="6 3" />
+            <text x={27} y={17} fontSize={9} fill="#374151">Equilibrium</text>
+          </g>
+        </g>
+      </svg>
+    </div>
+  )
+}

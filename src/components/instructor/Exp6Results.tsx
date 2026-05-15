@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Stat } from './charts'
+import { Stat, Exp6BidCdfChart } from './charts'
 import type { AllPayEntry } from '@/lib/types'
 
 type Tab = 2 | 5 | 10 | 'lookup'
@@ -182,8 +182,22 @@ export default function Exp6Results() {
   const [resetting, setResetting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [actionMsg, setActionMsg] = useState('')
+  const [allBids, setAllBids] = useState<{ 2: number[]; 5: number[]; 10: number[] }>({ 2: [], 5: [], 10: [] })
 
   const numBidders = tab !== 'lookup' ? tab : 2
+
+  const fetchAllBids = useCallback(async () => {
+    const [r2, r5, r10] = await Promise.all([
+      fetch('/api/exp6?num_bidders=2').then((r) => r.ok ? r.json() as Promise<AllPayEntry[]> : []),
+      fetch('/api/exp6?num_bidders=5').then((r) => r.ok ? r.json() as Promise<AllPayEntry[]> : []),
+      fetch('/api/exp6?num_bidders=10').then((r) => r.ok ? r.json() as Promise<AllPayEntry[]> : []),
+    ])
+    setAllBids({
+      2:  (r2  as AllPayEntry[]).filter((e) => e.bid !== null).map((e) => Number(e.bid)),
+      5:  (r5  as AllPayEntry[]).filter((e) => e.bid !== null).map((e) => Number(e.bid)),
+      10: (r10 as AllPayEntry[]).filter((e) => e.bid !== null).map((e) => Number(e.bid)),
+    })
+  }, [])
 
   const fetchRows = useCallback(async () => {
     if (tab === 'lookup') return
@@ -197,6 +211,7 @@ export default function Exp6Results() {
   }, [tab])
 
   useEffect(() => { fetchRows() }, [fetchRows])
+  useEffect(() => { fetchAllBids() }, [fetchAllBids])
 
   const submitted = rows.filter((r) => r.bid !== null)
   const groupedRows = rows.filter((r) => r.group_id !== null && r.bid !== null)
@@ -233,7 +248,7 @@ export default function Exp6Results() {
       })
       const json = await res.json()
       setActionMsg(`Grouped ${json.grouped} students. ${json.ungrouped} left without a group.`)
-      await fetchRows()
+      await Promise.all([fetchRows(), fetchAllBids()])
     } catch {
       setActionMsg('Error grouping. Please try again.')
     } finally {
@@ -249,7 +264,7 @@ export default function Exp6Results() {
     setDeletingId(id)
     try {
       await fetch(`/api/exp6?id=${id}`, { method: 'DELETE' })
-      await fetchRows()
+      await Promise.all([fetchRows(), fetchAllBids()])
     } catch {
       setActionMsg('Error deleting entry.')
     } finally {
@@ -298,6 +313,11 @@ export default function Exp6Results() {
             {label}
           </button>
         ))}
+      </div>
+
+      {/* CDF chart — always visible */}
+      <div className="rounded-xl p-4 mb-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        <Exp6BidCdfChart bids2={allBids[2]} bids5={allBids[5]} bids10={allBids[10]} />
       </div>
 
       {/* Lookup tab */}
