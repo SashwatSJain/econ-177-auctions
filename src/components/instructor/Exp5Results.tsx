@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Stat } from './charts'
+import { Stat, Exp5BidCdfChart } from './charts'
 import type { BetaCVEntry } from '@/lib/types'
 
 function fmtBid(n: number, variant: 'integer' | 'continuous') {
@@ -30,6 +30,8 @@ export default function Exp5Results() {
   useEffect(() => { fetchRows() }, [fetchRows])
 
   const submitted = rows.filter((r) => r.bid !== null)
+  const bids0 = submitted.filter((r) => Number(r.half_value) === 0).map((r) => Number(r.bid))
+  const bids3 = submitted.filter((r) => Number(r.half_value) === 3).map((r) => Number(r.bid))
   const pairedRows = rows.filter((r) => r.pair_id !== null)
   const unpairedSubmitted = submitted.filter((r) => r.pair_id === null)
   const notSubmitted = rows.filter((r) => r.bid === null)
@@ -131,6 +133,13 @@ export default function Exp5Results() {
         <Stat label="Avg Bid" value={avgBid !== null ? fmtBid(avgBid, variant) : '—'} />
         <Stat label="Avg Winner Profit" value={avgProfit !== null ? fmtBid(avgProfit, variant) : '—'} />
       </div>
+
+      {/* CDF chart — continuous only */}
+      {submitted.length > 0 && variant === 'continuous' && (
+        <div className="rounded-xl p-4 mb-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <Exp5BidCdfChart bids0={bids0} bids3={bids3} />
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex flex-wrap gap-2 items-center justify-between mb-6">

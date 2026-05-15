@@ -442,3 +442,169 @@ export function Exp4ScatterChart({ data }: { data: { x: number; y: number; id: s
 }
 
 export { filterExp4Outliers }
+
+// ── Experiment 5 Bid CDF chart ───────────────────────────────────────────────
+
+const E5_X_MAX = 6
+const E5_W = 370
+const E5_H = 260
+const E5_PAD = { top: 32, right: 16, bottom: 44, left: 52 }
+const E5_IW = E5_W - E5_PAD.left - E5_PAD.right
+const E5_IH = E5_H - E5_PAD.top - E5_PAD.bottom
+
+const e5sx = (x: number) => E5_PAD.left + (x / E5_X_MAX) * E5_IW
+const e5sy = (p: number) => E5_PAD.top + (1 - p) * E5_IH
+
+function e5CdfPts(bids: number[]): [number, number][] {
+  if (bids.length === 0) return []
+  const sorted = [...bids].sort((a, b) => a - b)
+  const n = sorted.length
+  const pts: [number, number][] = [[0, 0]]
+  let i = 0
+  while (i < n) {
+    const val = sorted[i]
+    let j = i
+    while (j < n && sorted[j] === val) j++
+    pts.push([val, i / n])
+    pts.push([val, j / n])
+    i = j
+  }
+  pts.push([E5_X_MAX, 1])
+  return pts
+}
+
+function e5Poly(pts: [number, number][]): string {
+  return pts.map(([x, p]) => `${e5sx(x).toFixed(1)},${e5sy(p).toFixed(1)}`).join(' ')
+}
+
+function e5FillPoly(pts: [number, number][]): string {
+  if (pts.length === 0) return ''
+  const last = pts[pts.length - 1]
+  return [
+    ...pts.map(([x, p]) => `${e5sx(x).toFixed(1)},${e5sy(p).toFixed(1)}`),
+    `${e5sx(last[0]).toFixed(1)},${e5sy(0).toFixed(1)}`,
+    `${e5sx(0).toFixed(1)},${e5sy(0).toFixed(1)}`,
+  ].join(' ')
+}
+
+const E5_Y_TICKS = [0, 0.2, 0.4, 0.6, 0.8, 1.0]
+const E5_X_TICKS = [0, 1, 2, 3, 4, 5, 6]
+const E5_GREEN = '#2a9d5c'
+
+function E5CdfPanel({
+  title,
+  empColor,
+  n,
+  empPts,
+  eqPts,
+  showYLabel,
+}: {
+  title: string
+  empColor: string
+  n: number
+  empPts: [number, number][]
+  eqPts: [number, number][]
+  showYLabel: boolean
+}) {
+  const hasData = empPts.length > 0
+  return (
+    <svg viewBox={`0 0 ${E5_W} ${E5_H}`} style={{ display: 'block', width: '100%' }}>
+      <text x={E5_W / 2} y={18} textAnchor="middle" fontSize={11} fontWeight={600} fill="var(--navy)">
+        {title}
+      </text>
+
+      {E5_Y_TICKS.map((p) => (
+        <line key={p} x1={E5_PAD.left} y1={e5sy(p)} x2={E5_PAD.left + E5_IW} y2={e5sy(p)}
+          stroke="#e5e7eb" strokeWidth={1} />
+      ))}
+      {E5_X_TICKS.map((x) => (
+        <line key={x} x1={e5sx(x)} y1={E5_PAD.top} x2={e5sx(x)} y2={E5_PAD.top + E5_IH}
+          stroke="#f0f1f3" strokeWidth={0.5} />
+      ))}
+
+      {E5_Y_TICKS.map((p) => (
+        <text key={p} x={E5_PAD.left - 6} y={e5sy(p) + 4}
+          textAnchor="end" fontSize={9} fill="#6b7280">
+          {(p * 100).toFixed(0)}%
+        </text>
+      ))}
+      {E5_X_TICKS.map((x) => (
+        <text key={x} x={e5sx(x)} y={E5_PAD.top + E5_IH + 14}
+          textAnchor="middle" fontSize={9} fill="#6b7280">
+          {x}
+        </text>
+      ))}
+
+      {showYLabel && (
+        <text x={10} y={E5_PAD.top + E5_IH / 2}
+          textAnchor="middle" fontSize={9} fill="#6b7280"
+          transform={`rotate(-90, 10, ${E5_PAD.top + E5_IH / 2})`}>
+          Cumulative probability
+        </text>
+      )}
+      <text x={E5_PAD.left + E5_IW / 2} y={E5_H - 4}
+        textAnchor="middle" fontSize={9} fill="#6b7280">
+        Bid ($)
+      </text>
+
+      {hasData && (
+        <polygon points={e5FillPoly(empPts)} fill={empColor} opacity={0.12} />
+      )}
+
+      <polyline points={e5Poly(eqPts)} fill="none"
+        stroke={E5_GREEN} strokeWidth={2} strokeDasharray="7 3" />
+
+      {hasData && (
+        <polyline points={e5Poly(empPts)} fill="none"
+          stroke={empColor} strokeWidth={2.5}
+          strokeLinejoin="miter" strokeLinecap="square" />
+      )}
+
+      {!hasData && (
+        <text x={E5_PAD.left + E5_IW / 2} y={E5_PAD.top + E5_IH / 2}
+          textAnchor="middle" fontSize={11} fill="#9ca3af">
+          No bids yet
+        </text>
+      )}
+
+      <g transform={`translate(${E5_PAD.left + 6}, ${E5_PAD.top + 6})`}>
+        <rect x={0} y={0} width={120} height={46} rx={3}
+          fill="white" fillOpacity={0.9} stroke="#e5e7eb" strokeWidth={0.5} />
+        <line x1={6} y1={13} x2={22} y2={13} stroke={empColor} strokeWidth={2.5} />
+        <text x={27} y={17} fontSize={9} fill="#374151">Empirical (n={n})</text>
+        <line x1={6} y1={32} x2={22} y2={32} stroke={E5_GREEN} strokeWidth={2} strokeDasharray="6 2.5" />
+        <text x={27} y={36} fontSize={9} fill="#374151">Equilibrium</text>
+      </g>
+    </svg>
+  )
+}
+
+export function Exp5BidCdfChart({ bids0, bids3 }: { bids0: number[]; bids3: number[] }) {
+  // Integer type-0 equilibrium: mass at 0 → instant step to 100%
+  const eq0: [number, number][] = [[0, 0], [0, 1], [E5_X_MAX, 1]]
+
+  // Type-3 equilibrium: F(b) = b/(6−b) on [0,3] (symmetric BNE mixed strategy)
+  const eq3: [number, number][] = []
+  for (let i = 0; i <= 80; i++) {
+    const b = (i / 80) * 3
+    eq3.push([b, b / (6 - b)])
+  }
+  eq3.push([E5_X_MAX, 1])
+
+  const emp0 = e5CdfPts(bids0)
+  const emp3 = e5CdfPts(bids3)
+
+  return (
+    <div>
+      <p className="text-xs uppercase tracking-widest mb-3 text-center" style={{ color: 'var(--text-muted)', fontWeight: 600 }}>
+        Empirical vs Equilibrium Bid CDFs
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <E5CdfPanel title="Half Value = $0" empColor="#3b82f6" n={bids0.length}
+          empPts={emp0} eqPts={eq0} showYLabel />
+        <E5CdfPanel title="Half Value = $3" empColor="#c2410c" n={bids3.length}
+          empPts={emp3} eqPts={eq3} showYLabel={false} />
+      </div>
+    </div>
+  )
+}
