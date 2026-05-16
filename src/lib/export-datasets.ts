@@ -22,7 +22,7 @@ export const EXPORT_DATASETS = [
   {
     key: 'exp4-group',
     title: 'Jar of Kernels — Group Data',
-    description: 'Experiment 4 group data: all 10 members\' 10-bidder bids. Others are anonymized; your row is last.',
+    description: 'You are paired with 9 others.',
     filenameSuffix: 'exp4-group',
   },
 ] as const satisfies ReadonlyArray<{
