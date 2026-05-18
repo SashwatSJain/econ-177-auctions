@@ -105,6 +105,14 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ deleted: true })
   }
 
+  if (type === 'record') {
+    const id = searchParams.get('id')
+    if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+    const { error } = await admin.from('attendance_records').delete().eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ deleted: true })
+  }
+
   if (type === 'day') {
     const day = searchParams.get('day') // YYYY-MM-DD Pacific
     if (!day) return NextResponse.json({ error: 'Missing day' }, { status: 400 })

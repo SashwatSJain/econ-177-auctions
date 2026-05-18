@@ -119,6 +119,14 @@ export default function AttendanceResults() {
     fetchRecords()
   }
 
+  async function deleteRecord(id: string) {
+    if (!confirm('Delete this attendance record?')) return
+    setDeleting(true)
+    await fetch(`/api/attendance?type=record&id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+    setDeleting(false)
+    fetchRecords()
+  }
+
   // ── Export all ───────────────────────────────────────────────────────────────
 
   const handleExport = async () => {
@@ -313,7 +321,7 @@ export default function AttendanceResults() {
                       : <span style={{ fontStyle: 'italic' }}>unavailable</span>}
                   </td>
                   <td style={{ ...td, textAlign: 'right' }}>
-                    <button onClick={() => deleteStudent(r.student_id)} disabled={deleting}
+                    <button onClick={() => deleteRecord(r.id)} disabled={deleting}
                       className="text-xs px-2 py-0.5 rounded"
                       style={{ color: '#dc2626', border: '1px solid #fca5a5', background: 'transparent' }}>
                       ✕
