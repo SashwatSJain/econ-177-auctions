@@ -320,7 +320,7 @@ function Exp4Charts() {
   const [rows, setRows] = useState<Exp4Row[]>([])
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'bid_2' | 'bid_10' | 'bid_100'>('bid_2')
-  const [noOutliers, setNoOutliers] = useState(false)
+  const [noOutliers, setNoOutliers] = useState(true)
 
   useEffect(() => {
     setLoading(true)
