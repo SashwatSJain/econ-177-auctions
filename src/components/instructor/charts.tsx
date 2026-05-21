@@ -443,6 +443,214 @@ export function Exp4ScatterChart({ data }: { data: { x: number; y: number; id: s
 
 export { filterExp4Outliers }
 
+// ── Experiment 1 bid scatter + OLS chart ─────────────────────────────────────
+
+function olsLinReg(xs: number[], ys: number[]) {
+  const n = xs.length
+  if (n < 3) return null
+  const mx = xs.reduce((a, b) => a + b, 0) / n
+  const my = ys.reduce((a, b) => a + b, 0) / n
+  const ssxy = xs.reduce((a, x, i) => a + (x - mx) * (ys[i] - my), 0)
+  const ssxx = xs.reduce((a, x) => a + (x - mx) ** 2, 0)
+  if (ssxx === 0) return null
+  const slope = ssxy / ssxx
+  const intercept = my - slope * mx
+  const yHat = xs.map((x) => intercept + slope * x)
+  const ssTot = ys.reduce((a, y) => a + (y - my) ** 2, 0)
+  const ssRes = ys.reduce((a, y, i) => a + (y - yHat[i]) ** 2, 0)
+  const r2 = ssTot > 0 ? 1 - ssRes / ssTot : 1
+  const s2 = ssRes / (n - 2)
+  const seSlope = Math.sqrt(s2 / ssxx)
+  const seIntercept = Math.sqrt(s2 * (1 / n + (mx * mx) / ssxx))
+  return { slope, intercept, r2, seSlope, seIntercept, n }
+}
+
+export function Exp1BidChart({
+  bids,
+  nashFormula,
+  participationThreshold,
+  nashSlope,
+  regressionBids,
+}: {
+  bids: { pv: number; bid: number }[]
+  nashFormula: (v: number) => number
+  participationThreshold: number | null
+  nashSlope: number | null
+  regressionBids?: { pv: number; bid: number }[]
+}) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
+
+  const W = 560; const H = 280
+  const PAD = { top: 20, right: 20, bottom: 40, left: 52 }
+  const innerW = W - PAD.left - PAD.right
+  const innerH = H - PAD.top - PAD.bottom
+  const AXIS_MAX = 100
+
+  // Exclude bids outside the chart domain (matches the HTML analyzer's `bid <= 100` guard)
+  const safeBids = bids.filter((d) => d.pv >= 0 && d.bid >= 0 && d.bid <= AXIS_MAX)
+  const safeRegBids = (regressionBids ?? bids).filter((d) => d.pv >= 0 && d.bid >= 0 && d.bid <= AXIS_MAX)
+
+  if (safeBids.length === 0) {
+    return (
+      <div className="flex items-center justify-center rounded-lg"
+        style={{ height: `${H}px`, background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>No bids yet</span>
+      </div>
+    )
+  }
+
+  const sx = (v: number) => PAD.left + (v / AXIS_MAX) * innerW
+  const sy = (v: number) => PAD.top + (1 - v / AXIS_MAX) * innerH
+
+  // Nash equilibrium polyline
+  const nashPts: [number, number][] = []
+  if (participationThreshold != null) {
+    nashPts.push([0, 0])
+    nashPts.push([participationThreshold, 0])
+  }
+  const nashStart = participationThreshold ?? 0
+  for (let i = 0; i <= 200; i++) {
+    const v = nashStart + (i / 200) * (AXIS_MAX - nashStart)
+    nashPts.push([v, nashFormula(v)])
+  }
+  const nashPolyline = nashPts.map(([v, b]) => `${sx(v).toFixed(1)},${sy(b).toFixed(1)}`).join(' ')
+
+  // OLS regression on safe, optionally filtered bids
+  const reg = nashSlope !== null ? olsLinReg(safeRegBids.map((d) => d.pv), safeRegBids.map((d) => d.bid)) : null
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const svg = svgRef.current
+    if (!svg) return
+    const rect = svg.getBoundingClientRect()
+    const mx = ((e.clientX - rect.left) / rect.width) * W
+    const my = ((e.clientY - rect.top) / rect.height) * H
+    let best = 0; let bestDist = Infinity
+    safeBids.forEach((d, i) => {
+      const dist = Math.hypot(sx(d.pv) - mx, sy(d.bid) - my)
+      if (dist < bestDist) { bestDist = dist; best = i }
+    })
+    setHoveredIdx(best)
+  }
+
+  const ticks = [0, 25, 50, 75, 100]
+  const hov = hoveredIdx != null ? safeBids[hoveredIdx] : null
+  const TW = 96; const TH = 46
+  const tooltipX = hov ? Math.min(Math.max(sx(hov.pv) - TW / 2, PAD.left), PAD.left + innerW - TW) : 0
+  const tooltipY = hov ? (sy(hov.bid) - TH - 8 < PAD.top ? sy(hov.bid) + 8 : sy(hov.bid) - TH - 8) : 0
+  const fmt4 = (v: number) => v.toFixed(4)
+
+  return (
+    <div>
+      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="w-full"
+        style={{ display: 'block', cursor: 'crosshair' }}
+        onMouseMove={handleMouseMove} onMouseLeave={() => setHoveredIdx(null)}>
+        {ticks.map((v) => (
+          <g key={v}>
+            <line x1={PAD.left} y1={sy(v)} x2={PAD.left + innerW} y2={sy(v)} stroke="var(--border)" strokeWidth={1} />
+            <line x1={sx(v)} y1={PAD.top} x2={sx(v)} y2={PAD.top + innerH} stroke="var(--border)" strokeWidth={1} />
+            <text x={PAD.left - 5} y={sy(v) + 4} textAnchor="end" fontSize={9} fill="var(--text-muted)">{v}</text>
+            <text x={sx(v)} y={H - PAD.bottom + 14} textAnchor="middle" fontSize={9} fill="var(--text-muted)">{v}</text>
+          </g>
+        ))}
+        {hov && (
+          <line x1={sx(hov.pv)} y1={PAD.top} x2={sx(hov.pv)} y2={PAD.top + innerH}
+            stroke="var(--navy)" strokeWidth={1} strokeOpacity={0.2} strokeDasharray="3 2" />
+        )}
+        {safeBids.map((d, i) => (
+          <circle key={i} cx={sx(d.pv)} cy={sy(d.bid)}
+            r={hoveredIdx === i ? 5 : 3}
+            fill={hoveredIdx === i ? '#fff' : 'var(--navy)'}
+            stroke="var(--navy)" strokeWidth={hoveredIdx === i ? 2 : 0}
+            opacity={hoveredIdx === i ? 1 : 0.45} />
+        ))}
+        {/* Lines drawn last so they render above the scatter dots */}
+        <polyline points={nashPolyline} fill="none" stroke="var(--gold)" strokeWidth={2.5} strokeDasharray="6 3" />
+        {reg && (
+          <line
+            x1={sx(0)} y1={sy(reg.intercept)}
+            x2={sx(AXIS_MAX)} y2={sy(reg.intercept + reg.slope * AXIS_MAX)}
+            stroke="#ef4444" strokeWidth={2} strokeDasharray="7 3" />
+        )}
+        <text x={10} y={H / 2} textAnchor="middle" fontSize={9} fill="var(--text-muted)"
+          transform={`rotate(-90, 10, ${H / 2})`}>Bid ($)</text>
+        <text x={PAD.left + innerW / 2} y={H - 2} textAnchor="middle" fontSize={9} fill="var(--text-muted)">
+          Private Value ($)
+        </text>
+        {hov && (
+          <g>
+            <rect x={tooltipX} y={tooltipY} width={TW} height={TH} rx={4} fill="var(--navy)" opacity={0.93} />
+            <text x={tooltipX + TW / 2} y={tooltipY + 13} textAnchor="middle" fontSize={8} fill="rgba(255,255,255,0.65)">
+              v: ${hov.pv.toFixed(0)}
+            </text>
+            <text x={tooltipX + TW / 2} y={tooltipY + 27} textAnchor="middle" fontSize={10} fontWeight={600} fill="#fff">
+              bid: ${hov.bid.toFixed(0)}
+            </text>
+            <text x={tooltipX + TW / 2} y={tooltipY + 41} textAnchor="middle" fontSize={8} fill="rgba(255,255,255,0.7)">
+              ratio: {hov.pv > 0 ? (hov.bid / hov.pv).toFixed(2) : '—'}
+            </text>
+          </g>
+        )}
+      </svg>
+      {/* Legend + OLS equation */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mt-2 px-1" style={{ fontSize: 11 }}>
+        <div className="flex items-center gap-1.5">
+          <svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="var(--gold)" strokeWidth="1.5" strokeDasharray="5 3" /></svg>
+          <span style={{ color: 'var(--text-muted)' }}>Nash equilibrium</span>
+        </div>
+        {reg ? (
+          <>
+            <div className="flex items-center gap-1.5">
+              <svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="#ef4444" strokeWidth="1.5" strokeDasharray="6 3" /></svg>
+              <span style={{ color: 'var(--text-muted)' }}>OLS fit</span>
+            </div>
+            <span style={{ color: 'var(--text-muted)' }}>
+              bid = <span style={{ color: 'var(--text)', fontWeight: 500 }}>{fmt4(reg.slope)}</span>·v
+              {reg.intercept >= 0
+                ? <> + <span style={{ color: 'var(--text)', fontWeight: 500 }}>{fmt4(reg.intercept)}</span></>
+                : <> − <span style={{ color: 'var(--text)', fontWeight: 500 }}>{fmt4(-reg.intercept)}</span></>}
+            </span>
+            <span style={{ color: 'var(--text-muted)' }}>
+              R² = <span style={{ color: 'var(--text)', fontWeight: 500 }}>{reg.r2.toFixed(3)}</span>
+            </span>
+            <span style={{ color: 'var(--text-muted)' }}>
+              n = <span style={{ color: 'var(--text)', fontWeight: 500 }}>{reg.n}</span>
+            </span>
+          </>
+        ) : (
+          <span style={{ color: 'var(--text-muted)' }}>
+            n = <span style={{ color: 'var(--text)', fontWeight: 500 }}>{safeBids.length}</span>
+          </span>
+        )}
+      </div>
+      {/* Hypothesis test row */}
+      {reg && nashSlope !== null && (() => {
+        const tSlope = (reg.slope - nashSlope) / reg.seSlope
+        const tIntercept = reg.intercept / reg.seIntercept
+        const sRej = Math.abs(tSlope) > 1.96
+        const iRej = Math.abs(tIntercept) > 1.96
+        return (
+          <div className="mt-1.5 px-1 flex flex-wrap gap-x-3 gap-y-1" style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>
+            <span>
+              β (H₀={nashSlope}): {fmt4(reg.slope)} (SE {fmt4(reg.seSlope)}) [t={tSlope.toFixed(3)}]{' '}
+              <span style={{ color: sRej ? '#b91c1c' : '#166534', fontWeight: 500 }}>
+                {sRej ? 'rejected' : 'not rejected'}
+              </span>
+            </span>
+            <span style={{ color: 'var(--border)' }}>|</span>
+            <span>
+              α (H₀=0): {fmt4(reg.intercept)} (SE {fmt4(reg.seIntercept)}) [t={tIntercept.toFixed(3)}]{' '}
+              <span style={{ color: iRej ? '#b91c1c' : '#166534', fontWeight: 500 }}>
+                {iRej ? 'rejected' : 'not rejected'}
+              </span>
+            </span>
+          </div>
+        )
+      })()}
+    </div>
+  )
+}
+
 // ── Experiment 5 Bid CDF chart ───────────────────────────────────────────────
 
 const E5_X_MAX = 6
@@ -655,14 +863,13 @@ function e6EqPts(n: number): [number, number][] {
 }
 
 const E6_SERIES = [
-  { n: 2,  empColor: '#111827', label: '2 bidders' },
-  { n: 5,  empColor: '#dc2626', label: '5 bidders' },
-  { n: 10, empColor: '#0891b2', label: '10 bidders' },
+  { n: 2,  empColor: '#111827', eqColor: '#9ca3af', label: '2 bidders' },
+  { n: 5,  empColor: '#dc2626', eqColor: '#fca5a5', label: '5 bidders' },
+  { n: 10, empColor: '#0891b2', eqColor: '#7dd3fc', label: '10 bidders' },
 ] as const
 
 const E6_Y_TICKS = [0, 0.2, 0.4, 0.6, 0.8, 1.0]
 const E6_X_TICKS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
-const E6_EQ_COLOR = '#9ca3af'
 
 export function Exp6BidCdfChart({ bids2, bids5, bids10 }: { bids2: number[]; bids5: number[]; bids10: number[] }) {
   const allBids = [bids2, bids5, bids10]
@@ -712,10 +919,10 @@ export function Exp6BidCdfChart({ bids2, bids5, bids10 }: { bids2: number[]; bid
         </text>
 
         {/* Equilibrium curves (dashed) */}
-        {E6_SERIES.map(({ n }) => (
+        {E6_SERIES.map(({ n, eqColor }) => (
           <polyline key={`eq-${n}`}
             points={e6Poly(e6EqPts(n))}
-            fill="none" stroke={E6_EQ_COLOR} strokeWidth={1.5} strokeDasharray="6 3" />
+            fill="none" stroke={eqColor} strokeWidth={1.5} strokeDasharray="6 3" />
         ))}
 
         {/* Empirical CDF curves */}
@@ -736,23 +943,23 @@ export function Exp6BidCdfChart({ bids2, bids5, bids10 }: { bids2: number[]; bid
             No bids yet
           </text>
         )}
-
-        {/* Legend */}
-        <g transform={`translate(${E6_PAD.left + 6}, ${E6_PAD.top + 6})`}>
-          <rect x={0} y={0} width={118} height={84} rx={3}
-            fill="white" fillOpacity={0.92} stroke="#e5e7eb" strokeWidth={0.5} />
-          {E6_SERIES.map(({ empColor, label }, i) => (
-            <g key={label} transform={`translate(0, ${i * 20})`}>
-              <line x1={6} y1={13} x2={22} y2={13} stroke={empColor} strokeWidth={2.5} />
-              <text x={27} y={17} fontSize={9} fill="#374151">{label}</text>
-            </g>
-          ))}
-          <g transform="translate(0, 60)">
-            <line x1={6} y1={13} x2={22} y2={13} stroke={E6_EQ_COLOR} strokeWidth={1.5} strokeDasharray="6 3" />
-            <text x={27} y={17} fontSize={9} fill="#374151">Equilibrium</text>
-          </g>
-        </g>
       </svg>
+
+      {/* Legend */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 8 }}>
+        {E6_SERIES.map(({ empColor, eqColor, label }) => (
+          <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <svg width="18" height="4"><line x1="0" y1="2" x2="18" y2="2" stroke={empColor} strokeWidth="2.5" /></svg>
+              <span style={{ fontSize: 11, color: '#374151' }}>{label}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <svg width="18" height="4"><line x1="0" y1="2" x2="18" y2="2" stroke={eqColor} strokeWidth="1.5" strokeDasharray="6 3" /></svg>
+              <span style={{ fontSize: 10, color: '#9ca3af' }}>equilibrium</span>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

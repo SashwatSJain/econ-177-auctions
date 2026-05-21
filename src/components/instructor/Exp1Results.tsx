@@ -1,12 +1,20 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Stat } from './charts'
+import { Stat, Exp1BidChart } from './charts'
 import { AUCTION_CONFIGS, TOTAL_ROUNDS } from '@/lib/auction-config'
 import type { Bid } from '@/lib/types'
 
 function computeRoundRevenue(roundBids: Bid[]): number {
   return roundBids.reduce((sum, b) => sum + Number(b.amount), 0)
+}
+
+function getRegressionBids(auctionKey: string, bids: Bid[]): { pv: number; bid: number }[] {
+  const all = bids.map((b) => ({ pv: Number(b.private_value), bid: Number(b.amount) }))
+  if (auctionKey === 'second-2') return all.filter((d) => Math.abs(d.bid - d.pv / 2) >= 0.99)
+  if (auctionKey === 'second-5') return all.filter((d) => Math.abs(d.bid - (d.pv * 4) / 5) >= 0.99 && d.bid !== 0)
+  if (auctionKey === 'first-2' || auctionKey === 'first-5') return all.filter((d) => d.bid < d.pv)
+  return all
 }
 
 type SortCol = 'student_id' | 'round' | 'private_value' | 'amount' | 'ratio' | 'created_at'
@@ -161,6 +169,22 @@ export default function Exp1Results() {
         <span style={{ color: 'var(--navy)', fontWeight: 500 }}>Seller Revenue: </span>
         {currentConfig.revenueDescription}
       </div>
+
+      {/* Bid scatter chart */}
+      {bids.length > 0 && (
+        <div className="rounded-xl p-4 mb-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <p className="text-xs tracking-widest uppercase mb-3" style={{ color: 'var(--text-muted)' }}>
+            Private Value vs. Bid (all rounds)
+          </p>
+          <Exp1BidChart
+            bids={bids.map((b) => ({ pv: Number(b.private_value), bid: Number(b.amount) }))}
+            nashFormula={currentConfig.nashFormula}
+            participationThreshold={currentConfig.participationThreshold}
+            nashSlope={currentConfig.nashSlope}
+            regressionBids={currentConfig.nashSlope !== null ? getRegressionBids(selectedAuction, bids) : undefined}
+          />
+        </div>
+      )}
 
       {/* Round filter + actions */}
       <div className="flex flex-wrap gap-2 items-center justify-between mb-4">

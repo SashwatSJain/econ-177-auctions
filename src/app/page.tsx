@@ -278,7 +278,7 @@ export default function HomePage() {
         </div>
 
         <div
-          className="mt-auto border-t pt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
+          className="mt-auto border-t pt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-6"
           style={{ borderColor: 'var(--border)' }}
         >
           <Link
@@ -294,6 +294,13 @@ export default function HomePage() {
             style={{ color: 'var(--text-muted)' }}
           >
             Export My Data
+          </Link>
+          <Link
+            href="/class-results"
+            className="text-xs tracking-widest uppercase"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            View Class Results
           </Link>
           <Link
             href="/instructor"
