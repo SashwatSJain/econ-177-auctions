@@ -311,7 +311,7 @@ function Exp3Charts() {
 // ── Exp 4 ────────────────────────────────────────────────────────────────────
 
 const EXP4_TABS = [
-  { key: 'bid_2' as const, label: '1 Bidder' },
+  { key: 'bid_2' as const, label: '2 Bidders' },
   { key: 'bid_10' as const, label: '10 Bidders' },
   { key: 'bid_100' as const, label: '100 Bidders' },
 ]
@@ -445,7 +445,7 @@ export default function ClassResultsPage() {
 
         <Section
           title="Experiment 4 — Jar of Kernels"
-          description="Scatter plot of each student's kernel estimate vs. their bid under 1, 10, or 100 bidders."
+          description="Scatter plot of each student's kernel estimate vs. their bid under 2, 10, or 100 bidders."
         >
           <Exp4Charts />
         </Section>

@@ -325,22 +325,16 @@ export function Exp4ScatterChart({ data }: { data: { x: number; y: number; id: s
   const sx = (v: number) => PAD.left + (v / maxVal) * innerW
   const sy = (v: number) => PAD.top + (1 - v / maxVal) * innerH
 
-  // OLS: bid = intercept + slope * estimate
+  // OLS through origin: bid = slope * estimate
   const n = data.length
-  const sumX = data.reduce((s, d) => s + d.x, 0)
-  const sumY = data.reduce((s, d) => s + d.y, 0)
   const sumXY = data.reduce((s, d) => s + d.x * d.y, 0)
   const sumX2 = data.reduce((s, d) => s + d.x * d.x, 0)
-  const denom = n * sumX2 - sumX * sumX
-  const slope = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 1
-  const intercept = (sumY - slope * sumX) / n
+  const slope = sumX2 !== 0 ? sumXY / sumX2 : 1
+  const sumY = data.reduce((s, d) => s + d.y, 0)
   const meanY = sumY / n
   const ssTot = data.reduce((s, d) => s + (d.y - meanY) ** 2, 0)
-  const ssRes = data.reduce((s, d) => s + (d.y - (intercept + slope * d.x)) ** 2, 0)
+  const ssRes = data.reduce((s, d) => s + (d.y - slope * d.x) ** 2, 0)
   const r2 = ssTot > 0 ? 1 - ssRes / ssTot : 1
-  // clamp regression line to chart domain [0, maxVal]
-  const regX0 = 0; const regY0 = intercept
-  const regX1 = maxVal; const regY1 = intercept + slope * maxVal
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const svg = svgRef.current
@@ -384,9 +378,7 @@ export function Exp4ScatterChart({ data }: { data: { x: number; y: number; id: s
             {v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v.toFixed(0)}
           </text>
         ))}
-        <line x1={sx(0)} y1={sy(0)} x2={sx(maxVal * 0.96)} y2={sy(maxVal * 0.96)}
-          stroke="var(--gold)" strokeWidth={1.5} strokeDasharray="4 3" />
-        <line x1={sx(regX0)} y1={sy(regY0)} x2={sx(regX1)} y2={sy(regY1)}
+        <line x1={sx(0)} y1={sy(0)} x2={sx(maxVal)} y2={sy(slope * maxVal)}
           stroke="#ef4444" strokeWidth={1.5} strokeDasharray="6 3" />
         {hov && (
           <line x1={sx(hov.x)} y1={PAD.top} x2={sx(hov.x)} y2={PAD.top + innerH}
@@ -417,18 +409,11 @@ export function Exp4ScatterChart({ data }: { data: { x: number; y: number; id: s
       {/* Legend + OLS stats */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 mt-2 px-1" style={{ fontSize: 11 }}>
         <div className="flex items-center gap-1.5">
-          <svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="var(--gold)" strokeWidth="1.5" strokeDasharray="4 3" /></svg>
-          <span style={{ color: 'var(--text-muted)' }}>bid = estimate</span>
-        </div>
-        <div className="flex items-center gap-1.5">
           <svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="#ef4444" strokeWidth="1.5" strokeDasharray="6 3" /></svg>
-          <span style={{ color: 'var(--text-muted)' }}>OLS fit</span>
+          <span style={{ color: 'var(--text-muted)' }}>OLS fit (through origin)</span>
         </div>
         <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>
           bid = <span style={{ color: 'var(--text)', fontWeight: 500 }}>{fmtStat(slope)}</span> · est
-          {intercept >= 0
-            ? <> + <span style={{ color: 'var(--text)', fontWeight: 500 }}>{fmtStat(intercept)}</span></>
-            : <> − <span style={{ color: 'var(--text)', fontWeight: 500 }}>{fmtStat(-intercept)}</span></>}
         </span>
         <span style={{ color: 'var(--text-muted)' }}>
           R² = <span style={{ color: 'var(--text)', fontWeight: 500 }}>{r2.toFixed(3)}</span>
