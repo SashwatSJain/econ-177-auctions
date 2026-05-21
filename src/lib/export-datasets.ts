@@ -21,7 +21,7 @@ export const EXPORT_DATASETS = [
   },
   {
     key: 'exp4-group',
-    title: 'Jar of Kernels — Group Data',
+    title: 'Penny Jar Experiment — Group Data',
     description: 'You are paired with 9 others.',
     filenameSuffix: 'exp4-group',
   },

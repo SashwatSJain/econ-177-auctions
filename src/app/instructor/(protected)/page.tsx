@@ -36,7 +36,7 @@ const EXPERIMENTS = [
   {
     num: 4,
     href: '/instructor/exp4',
-    title: 'Jar of Kernels',
+    title: 'Penny Jar Experiment',
     description: 'Common-value auction. Students estimate kernel count and bid against 1, 10, or 100 competitors.',
     detail: '3 bid scenarios per student',
   },

@@ -29,7 +29,7 @@ export async function GET() {
     ['Exp1 - Bids', bids],
     ['Exp2 - Risk Aversion', riskAversion],
     ['Exp3 - Seller Auction', exp3],
-    ['Exp4 - Jar of Kernels', exp4],
+    ['Exp4 - Penny Jar Experiment', exp4],
     ['Exp5 - Oil Well', exp5],
     ['Exp6 - All-Pay', exp6],
     ['Attendance', attendance],

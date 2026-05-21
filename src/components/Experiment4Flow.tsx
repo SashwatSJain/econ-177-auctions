@@ -133,7 +133,7 @@ export default function Experiment4Flow() {
             UCSB · Econ 177
           </span>
           <span className="text-xs font-medium mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            Experiment 4: Jar of Kernels
+            Experiment 4: Penny Jar Experiment
           </span>
         </div>
         <div className="flex gap-1 items-center justify-self-end">
@@ -199,18 +199,18 @@ export default function Experiment4Flow() {
                   Context
                 </p>
                 <p className="text-sm" style={{ color: 'var(--text)', lineHeight: 1.7 }}>
-                  You see a jar containing an unknown number of kernels.
-                  Each kernel is worth $1, so the value of the jar equals the number of kernels inside it.
+                  You see a jar containing an unknown number of pennies.
+                  Each penny is worth $1, so the value of the jar equals the number of pennies inside it.
                 </p>
               </div>
 
               <p className="text-sm mb-4" style={{ color: 'var(--text)', lineHeight: 1.7 }}>
-                How many kernels do you think are in the jar?
+                How many pennies do you think are in the jar?
               </p>
               <input
                 type="number"
                 className="w-full rounded-lg px-4 py-3 text-base mb-2"
-                placeholder="Number of kernels"
+                placeholder="Number of pennies"
                 min="0"
                 step="1"
                 value={estimate}
@@ -399,7 +399,7 @@ function ContextBar({
   bid10?: string
 }) {
   const items: { label: string; value: string }[] = []
-  if (estimate) items.push({ label: 'Estimate', value: `${parseFloat(estimate).toLocaleString()} kernels` })
+  if (estimate) items.push({ label: 'Estimate', value: `${parseFloat(estimate).toLocaleString()} pennies` })
   if (bid2) items.push({ label: 'Bid (2 bidders)', value: `$${parseFloat(bid2).toLocaleString()}` })
   if (bid10) items.push({ label: 'Bid (10 bidders)', value: `$${parseFloat(bid10).toLocaleString()}` })
   if (items.length === 0) return null

@@ -444,7 +444,7 @@ export default function ClassResultsPage() {
         </Section>
 
         <Section
-          title="Experiment 4 — Jar of Kernels"
+          title="Experiment 4 — Penny Jar Experiment"
           description="Scatter plot of each student's kernel estimate vs. their bid under 2, 10, or 100 bidders."
         >
           <Exp4Charts />

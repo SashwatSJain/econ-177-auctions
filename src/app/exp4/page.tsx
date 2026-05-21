@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Experiment4Flow from '@/components/Experiment4Flow'
 
 export const metadata: Metadata = {
-  title: 'Experiment 4: Jar of Kernels — UCSB Econ 177',
+  title: 'Experiment 4: Penny Jar Experiment — UCSB Econ 177',
   description: 'Estimate the jar value and submit bids for first-price common-value auctions.',
 }
 
