@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import Exp2Results from '@/components/instructor/Exp2Results'
+import ClassTimeBanner from '@/components/instructor/ClassTimeBanner'
 
 export default function Exp2Page() {
   return (
@@ -11,6 +12,7 @@ export default function Exp2Page() {
           CRRA risk-aversion elicitation — 9 indifference probabilities per student
         </p>
       </div>
+      <ClassTimeBanner exp={2} />
       <Exp2Results />
     </div>
   )

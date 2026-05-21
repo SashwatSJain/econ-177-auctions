@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import Exp1Results from '@/components/instructor/Exp1Results'
+import ClassTimeBanner from '@/components/instructor/ClassTimeBanner'
 
 export default function Exp1Page() {
   return (
@@ -11,6 +12,7 @@ export default function Exp1Page() {
           Sealed-bid auction treatments — first/second price × 2/5 bidders × variants
         </p>
       </div>
+      <ClassTimeBanner exp={1} />
       <Exp1Results />
     </div>
   )

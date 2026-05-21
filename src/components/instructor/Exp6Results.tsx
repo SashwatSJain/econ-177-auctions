@@ -388,7 +388,7 @@ export default function Exp6Results() {
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                             <thead>
                               <tr style={{ background: 'var(--surface)' }}>
-                                {['Student', 'Bid', 'Outcome', 'Net', ''].map((h) => (
+                                {['Student', 'Bid', 'Outcome', 'Net', 'Time', ''].map((h) => (
                                   <th key={h} style={{ padding: '6px 12px', textAlign: 'left', fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)' }}>{h}</th>
                                 ))}
                               </tr>
@@ -411,6 +411,9 @@ export default function Exp6Results() {
                                     </td>
                                     <td style={{ padding: '7px 12px', fontWeight: 600, color: net === null ? 'var(--text-muted)' : net >= 0 ? 'var(--navy)' : '#dc2626' }}>
                                       {net !== null ? fmt(net) : '—'}
+                                    </td>
+                                    <td style={{ padding: '7px 12px', color: 'var(--text-muted)', fontSize: 11 }}>
+                                      {new Date(m.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                     </td>
                                     <td style={{ padding: '7px 12px' }}>
                                       <DeleteBtn id={m.id} isGrouped={true} />
@@ -436,7 +439,7 @@ export default function Exp6Results() {
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                       <thead>
                         <tr style={{ background: 'var(--surface)' }}>
-                          {['Student', 'Bid', ''].map((h) => (
+                          {['Student', 'Bid', 'Time', ''].map((h) => (
                             <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)' }}>{h}</th>
                           ))}
                         </tr>
@@ -446,6 +449,9 @@ export default function Exp6Results() {
                           <tr key={r.id} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
                             <td style={{ padding: '7px 12px', color: 'var(--text)', fontFamily: 'monospace', fontSize: 12 }}>{r.student_id}</td>
                             <td style={{ padding: '7px 12px', color: 'var(--text)', fontWeight: 600 }}>${Number(r.bid!).toFixed(2)}</td>
+                            <td style={{ padding: '7px 12px', color: 'var(--text-muted)', fontSize: 11 }}>
+                              {new Date(r.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </td>
                             <td style={{ padding: '7px 12px' }}><DeleteBtn id={r.id} isGrouped={false} /></td>
                           </tr>
                         ))}
@@ -464,7 +470,7 @@ export default function Exp6Results() {
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                       <thead>
                         <tr style={{ background: 'var(--surface)' }}>
-                          {['Student', ''].map((h) => (
+                          {['Student', 'Joined', ''].map((h) => (
                             <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)' }}>{h}</th>
                           ))}
                         </tr>
@@ -473,6 +479,9 @@ export default function Exp6Results() {
                         {notSubmitted.map((r, i) => (
                           <tr key={r.id} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
                             <td style={{ padding: '7px 12px', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: 12 }}>{r.student_id}</td>
+                            <td style={{ padding: '7px 12px', color: 'var(--text-muted)', fontSize: 11 }}>
+                              {new Date(r.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </td>
                             <td style={{ padding: '7px 12px' }}><DeleteBtn id={r.id} isGrouped={false} /></td>
                           </tr>
                         ))}

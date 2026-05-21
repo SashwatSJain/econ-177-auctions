@@ -3,12 +3,20 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import NewQuarterModal from '@/components/instructor/NewQuarterModal'
+import ClassScheduleSettings from '@/components/instructor/ClassScheduleSettings'
 
 const ATTENDANCE = {
   href: '/instructor/attendance',
   title: 'Attendance',
   description: 'Student sign-ins with PERM number, code word, timestamp, and GPS location. Grouped by class day.',
   detail: 'All sessions',
+}
+
+const PARTICIPATION = {
+  href: '/instructor/participation',
+  title: 'Participation',
+  description: 'One row per perm number — attendance sign-ins and experiment submissions side by side.',
+  detail: 'All students × all experiments',
 }
 
 const EXPERIMENTS = [
@@ -56,47 +64,82 @@ const EXPERIMENTS = [
   },
 ]
 
+type Tab = 'experiments' | 'settings'
+
 export default function InstructorOverview() {
   const [showNewQuarter, setShowNewQuarter] = useState(false)
+  const [tab, setTab] = useState<Tab>('experiments')
 
   return (
     <div>
-      <div className="flex items-start justify-between mb-8">
-        <div>
-          <h2 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>Experiments</h2>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-            Select an experiment to view results, charts, and export data.
-          </p>
+      {/* Tab bar + actions */}
+      <div className="flex items-center justify-between mb-8 gap-3">
+        <div className="flex gap-1">
+          {(['experiments', 'settings'] as Tab[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium capitalize transition-all"
+              style={{
+                background: tab === t ? 'var(--navy)' : 'var(--surface)',
+                color: tab === t ? '#fff' : 'var(--text-muted)',
+                border: `1px solid ${tab === t ? 'var(--navy)' : 'var(--border)'}`,
+              }}
+            >
+              {t}
+            </button>
+          ))}
         </div>
-        <button
-          onClick={() => setShowNewQuarter(true)}
-          className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
-          style={{ background: 'transparent', border: '1px solid #fca5a5', color: '#dc2626', cursor: 'pointer' }}
-        >
-          New Quarter
-        </button>
+        {tab === 'experiments' && (
+          <button
+            onClick={() => setShowNewQuarter(true)}
+            className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
+            style={{ background: 'transparent', border: '1px solid #fca5a5', color: '#dc2626', cursor: 'pointer' }}
+          >
+            New Quarter
+          </button>
+        )}
       </div>
 
-      {/* Attendance card */}
-      <div className="mb-4">
-        <Link
-          href={ATTENDANCE.href}
-          className="exp-card group block rounded-xl p-5 transition-all"
-          style={{ textDecoration: 'none' }}
-        >
-          <div className="flex items-start justify-between gap-2 mb-3">
-            <div
-              className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold"
-              style={{ background: 'var(--gold)', color: 'var(--navy)' }}
-            >
-              ✓
-            </div>
-            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>View records →</span>
+      {tab === 'settings' && (
+        <div>
+          <h2 className="text-lg font-semibold mb-1" style={{ color: 'var(--navy)' }}>Settings</h2>
+          <p className="text-xs mb-6" style={{ color: 'var(--text-muted)' }}>
+            Configure class schedule and other instructor preferences.
+          </p>
+          <div className="rounded-xl p-5 mb-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <h3 className="text-sm font-semibold mb-4" style={{ color: 'var(--navy)' }}>Class schedule</h3>
+            <ClassScheduleSettings />
           </div>
-          <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--navy)' }}>{ATTENDANCE.title}</h3>
-          <p className="text-xs leading-relaxed mb-3" style={{ color: 'var(--text-muted)' }}>{ATTENDANCE.description}</p>
-          <p className="text-[10px] tracking-widest uppercase font-medium" style={{ color: 'rgba(0,54,96,0.45)' }}>{ATTENDANCE.detail}</p>
-        </Link>
+        </div>
+      )}
+
+      {tab === 'experiments' && (
+        <>
+
+      {/* Attendance + Participation cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        {[ATTENDANCE, PARTICIPATION].map((card) => (
+          <Link
+            key={card.href}
+            href={card.href}
+            className="exp-card group block rounded-xl p-5 transition-all"
+            style={{ textDecoration: 'none' }}
+          >
+            <div className="flex items-start justify-between gap-2 mb-3">
+              <div
+                className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold"
+                style={{ background: 'var(--gold)', color: 'var(--navy)' }}
+              >
+                {card === ATTENDANCE ? '✓' : '≡'}
+              </div>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>View records →</span>
+            </div>
+            <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--navy)' }}>{card.title}</h3>
+            <p className="text-xs leading-relaxed mb-3" style={{ color: 'var(--text-muted)' }}>{card.description}</p>
+            <p className="text-[10px] tracking-widest uppercase font-medium" style={{ color: 'rgba(0,54,96,0.45)' }}>{card.detail}</p>
+          </Link>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -130,6 +173,8 @@ export default function InstructorOverview() {
           </Link>
         ))}
       </div>
+      </>
+      )}
 
       {showNewQuarter && <NewQuarterModal onClose={() => setShowNewQuarter(false)} />}
     </div>

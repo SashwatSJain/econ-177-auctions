@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import Exp4Results from '@/components/instructor/Exp4Results'
+import ClassTimeBanner from '@/components/instructor/ClassTimeBanner'
 
 export default function Exp4Page() {
   return (
@@ -11,6 +12,7 @@ export default function Exp4Page() {
           Common-value auction — students estimate kernel count and bid against 1, 10, or 100 competitors
         </p>
       </div>
+      <ClassTimeBanner exp={4} />
       <Exp4Results />
     </div>
   )

@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import Exp3Results from '@/components/instructor/Exp3Results'
+import ClassTimeBanner from '@/components/instructor/ClassTimeBanner'
 
 export default function Exp3Page() {
   return (
@@ -11,6 +12,7 @@ export default function Exp3Page() {
           Seller-role reserve-price auction — 4 treatments × 20 rounds, 2 or 5 bidders
         </p>
       </div>
+      <ClassTimeBanner exp={3} />
       <Exp3Results />
     </div>
   )
