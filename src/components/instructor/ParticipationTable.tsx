@@ -132,6 +132,12 @@ export default function ParticipationTable() {
     return counts
   }, [filtered])
 
+  const onTimeDist = useMemo(() => {
+    const counts = Array(EXPS.length + 1).fill(0)
+    for (const r of filtered) counts[onTimeScore(r)]++
+    return counts
+  }, [filtered])
+
   function formatHHMM(hhmm: string): string {
     const [h, m] = hhmm.split(':').map(Number)
     const ampm = h >= 12 ? 'PM' : 'AM'
@@ -292,56 +298,64 @@ export default function ParticipationTable() {
         </div>
       )}
 
-      {/* Score distribution chart */}
+      {/* Score distribution charts */}
       {filtered.length > 0 && (() => {
-        const maxCount = Math.max(...scoreDist, 1)
         const barH = 80
         const barW = 32
         const gap = 12
-        const totalW = scoreDist.length * (barW + gap) - gap
-        return (
-          <div className="rounded-xl p-5 mb-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-            <p className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: 'var(--text-muted)' }}>
-              Score distribution
-            </p>
-            <svg width={totalW} height={barH + 32} style={{ display: 'block', overflow: 'visible' }}>
-              {scoreDist.map((count, s) => {
-                const x = s * (barW + gap)
-                const h = count === 0 ? 2 : Math.max(4, Math.round((count / maxCount) * barH))
-                const y = barH - h
-                const full = s === EXPS.length
-                return (
-                  <g key={s}>
-                    <rect
-                      x={x} y={y} width={barW} height={h}
-                      rx={4}
-                      fill={full ? 'var(--navy)' : count === 0 ? 'var(--border)' : '#93c5fd'}
-                    />
-                    {count > 0 && (
+        const totalW = (EXPS.length + 1) * (barW + gap) - gap
+        const renderChart = (dist: number[], label: string) => {
+          const maxCount = Math.max(...dist, 1)
+          return (
+            <div className="rounded-xl p-5 mb-5 flex-1" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+              <p className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: 'var(--text-muted)' }}>
+                {label}
+              </p>
+              <svg width={totalW} height={barH + 32} style={{ display: 'block', overflow: 'visible' }}>
+                {dist.map((count, s) => {
+                  const x = s * (barW + gap)
+                  const h = count === 0 ? 2 : Math.max(4, Math.round((count / maxCount) * barH))
+                  const y = barH - h
+                  const full = s === EXPS.length
+                  return (
+                    <g key={s}>
+                      <rect
+                        x={x} y={y} width={barW} height={h}
+                        rx={4}
+                        fill={full ? 'var(--navy)' : count === 0 ? 'var(--border)' : '#93c5fd'}
+                      />
+                      {count > 0 && (
+                        <text
+                          x={x + barW / 2} y={y - 5}
+                          textAnchor="middle"
+                          fontSize={11}
+                          fontWeight={600}
+                          fill="var(--text)"
+                        >
+                          {count}
+                        </text>
+                      )}
                       <text
-                        x={x + barW / 2} y={y - 5}
+                        x={x + barW / 2} y={barH + 16}
                         textAnchor="middle"
                         fontSize={11}
-                        fontWeight={600}
-                        fill="var(--text)"
+                        fill={full ? 'var(--navy)' : 'var(--text-muted)'}
+                        fontWeight={full ? 700 : 400}
                       >
-                        {count}
+                        {s}
                       </text>
-                    )}
-                    <text
-                      x={x + barW / 2} y={barH + 16}
-                      textAnchor="middle"
-                      fontSize={11}
-                      fill={full ? 'var(--navy)' : 'var(--text-muted)'}
-                      fontWeight={full ? 700 : 400}
-                    >
-                      {s}
-                    </text>
-                  </g>
-                )
-              })}
-            </svg>
-            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>experiments completed</p>
+                    </g>
+                  )
+                })}
+              </svg>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>experiments completed</p>
+            </div>
+          )
+        }
+        return (
+          <div className="flex gap-4 mb-5">
+            {renderChart(onTimeDist, 'On-time distribution')}
+            {renderChart(scoreDist, 'Completion distribution')}
           </div>
         )
       })()}
