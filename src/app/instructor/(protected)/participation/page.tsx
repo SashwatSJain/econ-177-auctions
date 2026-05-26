@@ -9,9 +9,7 @@ export default function ParticipationPage() {
           ← Back to overview
         </Link>
         <h2 className="text-lg font-semibold" style={{ color: 'var(--navy)' }}>Participation by Student</h2>
-        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-          One row per perm number — attendance sign-ins and experiment submissions side by side.
-        </p>
+
       </div>
       <ParticipationTable />
     </div>

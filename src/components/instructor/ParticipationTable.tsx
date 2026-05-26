@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import * as XLSX from 'xlsx'
 import type { ParticipationRow, ExpParticipation } from '@/app/api/admin/participation/route'
 import type { InferredDateResult } from '@/app/api/settings/inferred-dates/route'
 
@@ -75,11 +76,11 @@ export default function ParticipationTable() {
   const [loading, setLoading] = useState(true)
   const [inferredDates, setInferredDates] = useState<InferredDateResult[]>([])
   const [search, setSearch] = useState('')
-  const [validOnly, setValidOnly] = useState(false)
-  const [sortKey, setSortKey] = useState<number | 'score' | null>(null)
+  const [validOnly, setValidOnly] = useState(true)
+  const [sortKey, setSortKey] = useState<number | 'score' | 'ontime' | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
-  function handleSort(key: number | 'score') {
+  function handleSort(key: number | 'score' | 'ontime') {
     if (sortKey === key) {
       setSortDir((d) => d === 'desc' ? 'asc' : 'desc')
     } else {
@@ -88,7 +89,14 @@ export default function ParticipationTable() {
     }
   }
 
-  function score(r: ParticipationRow) {
+  function onTimeScore(r: ParticipationRow) {
+    return EXPS.filter((n) => {
+      const exp = r[`exp${n}` as keyof ParticipationRow] as ExpParticipation
+      return exp && !exp.late
+    }).length
+  }
+
+  function completionScore(r: ParticipationRow) {
     return EXPS.filter((n) => r[`exp${n}` as keyof ParticipationRow]).length
   }
 
@@ -110,8 +118,8 @@ export default function ParticipationTable() {
     if (sortKey !== null) {
       const expVal = (v: ExpParticipation) => !v ? 0 : v.late ? 1 : 2
       result = [...result].sort((a, b) => {
-        const av = sortKey === 'score' ? score(a) : expVal(a[`exp${sortKey}` as keyof ParticipationRow] as ExpParticipation)
-        const bv = sortKey === 'score' ? score(b) : expVal(b[`exp${sortKey}` as keyof ParticipationRow] as ExpParticipation)
+        const av = sortKey === 'score' ? completionScore(a) : sortKey === 'ontime' ? onTimeScore(a) : expVal(a[`exp${sortKey}` as keyof ParticipationRow] as ExpParticipation)
+        const bv = sortKey === 'score' ? completionScore(b) : sortKey === 'ontime' ? onTimeScore(b) : expVal(b[`exp${sortKey}` as keyof ParticipationRow] as ExpParticipation)
         return sortDir === 'desc' ? bv - av : av - bv
       })
     }
@@ -120,9 +128,47 @@ export default function ParticipationTable() {
 
   const scoreDist = useMemo(() => {
     const counts = Array(EXPS.length + 1).fill(0)
-    for (const r of filtered) counts[score(r)]++
+    for (const r of filtered) counts[completionScore(r)]++
     return counts
   }, [filtered])
+
+  function formatHHMM(hhmm: string): string {
+    const [h, m] = hhmm.split(':').map(Number)
+    const ampm = h >= 12 ? 'PM' : 'AM'
+    const h12 = h % 12 || 12
+    return `${h12}:${String(m).padStart(2, '0')} ${ampm}`
+  }
+
+  function exportToExcel() {
+    const headers = ['Perm #', 'On-time', 'Completion', ...EXPS.map((n) => EXP_TITLES[n])]
+
+    const validityRow = ['Window', '', '', ...EXPS.map((n) => {
+      const d = inferredDates.find((x) => x.exp === n)
+      if (!d?.inferredDate) return ''
+      const dateLabel = d.dayOfWeek !== null
+        ? `${DOW_SHORT[d.dayOfWeek]}, ${formatDateShort(d.inferredDate)}`
+        : formatDateShort(d.inferredDate)
+      if (!d.scheduleStart || !d.scheduleEnd) return dateLabel
+      return `${dateLabel} · ${formatHHMM(d.scheduleStart)} – ${formatHHMM(d.scheduleEnd)}`
+    })]
+
+    const dataRows = filtered.map((r) => [
+      r.student_id,
+      onTimeScore(r),
+      completionScore(r),
+      ...EXPS.map((n) => {
+        const exp = r[`exp${n}` as keyof ParticipationRow] as ExpParticipation
+        if (!exp) return ''
+        const ts = exp.ts ? formatTs(exp.ts) : 'Submitted'
+        return exp.late ? `${ts} (late)` : ts
+      }),
+    ])
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, validityRow, ...dataRows])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Participation')
+    XLSX.writeFile(wb, 'participation.xlsx')
+  }
 
   const totals = useMemo(() => ({
     exp1: filtered.filter((r) => r.exp1).length,
@@ -185,6 +231,17 @@ export default function ParticipationTable() {
           }}
         >
           Valid perms only
+        </button>
+        <button
+          onClick={exportToExcel}
+          className="text-xs px-3 py-2 rounded-lg font-medium flex-shrink-0 transition-all ml-auto"
+          style={{
+            background: 'var(--surface)',
+            color: 'var(--navy)',
+            border: '1px solid var(--border)',
+          }}
+        >
+          Export Excel
         </button>
       </div>
 
@@ -298,10 +355,17 @@ export default function ParticipationTable() {
                 <TH>Perm #</TH>
                 <TH
                   style={{ textAlign: 'center' }}
+                  onClick={() => handleSort('ontime')}
+                  sorted={sortKey === 'ontime' ? sortDir : false}
+                >
+                  On-time
+                </TH>
+                <TH
+                  style={{ textAlign: 'center' }}
                   onClick={() => handleSort('score')}
                   sorted={sortKey === 'score' ? sortDir : false}
                 >
-                  Score
+                  Completion
                 </TH>
                 {EXPS.map((n) => (
                   <TH
@@ -322,6 +386,7 @@ export default function ParticipationTable() {
                   Total ({filtered.length})
                 </td>
                 <td style={{ padding: '6px 12px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }} />
+                <td style={{ padding: '6px 12px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }} />
                 {EXPS.map((n) => (
                   <td key={n} style={{ padding: '6px 12px', textAlign: 'center', fontSize: 11, color: 'var(--navy)', fontWeight: 600 }}>
                     {totals[`exp${n}` as keyof typeof totals]}
@@ -335,8 +400,11 @@ export default function ParticipationTable() {
                   <td style={{ padding: '7px 12px', fontFamily: 'monospace', fontSize: 12, color: 'var(--text)', fontWeight: 500 }}>
                     {r.student_id}
                   </td>
-                  <td style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 700, color: score(r) === EXPS.length ? 'var(--navy)' : 'var(--text)' }}>
-                    {score(r)}/{EXPS.length}
+                  <td style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 700, color: onTimeScore(r) === EXPS.length ? 'var(--navy)' : 'var(--text)' }}>
+                    {onTimeScore(r)}/{EXPS.length}
+                  </td>
+                  <td style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 700, color: completionScore(r) === EXPS.length ? 'var(--navy)' : 'var(--text)' }}>
+                    {completionScore(r)}/{EXPS.length}
                   </td>
                   {EXPS.map((n) => (
                     <td key={n} style={{ padding: '7px 12px', textAlign: 'center' }}>

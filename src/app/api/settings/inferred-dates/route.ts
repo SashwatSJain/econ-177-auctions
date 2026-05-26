@@ -88,6 +88,8 @@ export type InferredDateResult = {
   onTimeStudents: number | null
   outOfWindowStudents: number | null
   inClass: boolean | null
+  scheduleStart: string | null
+  scheduleEnd: string | null
 }
 
 // For high-volume tables (bids, experiment3_rounds), use compact views so we
@@ -126,7 +128,7 @@ export async function GET(req: NextRequest) {
 
         const totalStudents = new Set(days.map((r) => r.student_id)).size
         if (!totalStudents) {
-          return { exp, inferredDate: null, dayOfWeek: null, totalStudents: 0, onTimeStudents: null, outOfWindowStudents: null, inClass: null }
+          return { exp, inferredDate: null, dayOfWeek: null, totalStudents: 0, onTimeStudents: null, outOfWindowStudents: null, inClass: null, scheduleStart: schedule?.start ?? null, scheduleEnd: schedule?.end ?? null }
         }
 
         // Mode date by unique student count
@@ -155,7 +157,7 @@ export async function GET(req: NextRequest) {
           inClass = dayMatches && onTimeStudents / modeCount >= 0.5
         }
 
-        return { exp, inferredDate: modeDate, dayOfWeek: dow, totalStudents, onTimeStudents, outOfWindowStudents, inClass }
+        return { exp, inferredDate: modeDate, dayOfWeek: dow, totalStudents, onTimeStudents, outOfWindowStudents, inClass, scheduleStart: schedule?.start ?? null, scheduleEnd: schedule?.end ?? null }
       }
 
       // Low-volume tables: fetch all rows directly (always under 1000-row cap)
@@ -166,7 +168,7 @@ export async function GET(req: NextRequest) {
       const mode = getModeDate(rows)
 
       if (!mode) {
-        return { exp, inferredDate: null, dayOfWeek: null, totalStudents, onTimeStudents: null, outOfWindowStudents: null, inClass: null }
+        return { exp, inferredDate: null, dayOfWeek: null, totalStudents, onTimeStudents: null, outOfWindowStudents: null, inClass: null, scheduleStart: schedule?.start ?? null, scheduleEnd: schedule?.end ?? null }
       }
 
       const dow = dayOfWeekForDate(mode.date)
@@ -181,7 +183,7 @@ export async function GET(req: NextRequest) {
         inClass = dayMatches && onTimeStudents / mode.studentCount >= 0.5
       }
 
-      return { exp, inferredDate: mode.date, dayOfWeek: dow, totalStudents, onTimeStudents, outOfWindowStudents, inClass }
+      return { exp, inferredDate: mode.date, dayOfWeek: dow, totalStudents, onTimeStudents, outOfWindowStudents, inClass, scheduleStart: schedule?.start ?? null, scheduleEnd: schedule?.end ?? null }
     })
   )
 

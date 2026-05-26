@@ -15,7 +15,6 @@ const ATTENDANCE = {
 const PARTICIPATION = {
   href: '/instructor/participation',
   title: 'Participation',
-  description: 'One row per perm number — attendance sign-ins and experiment submissions side by side.',
   detail: 'All students × all experiments',
 }
 
@@ -136,7 +135,6 @@ export default function InstructorOverview() {
               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>View records →</span>
             </div>
             <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--navy)' }}>{card.title}</h3>
-            <p className="text-xs leading-relaxed mb-3" style={{ color: 'var(--text-muted)' }}>{card.description}</p>
             <p className="text-[10px] tracking-widest uppercase font-medium" style={{ color: 'rgba(0,54,96,0.45)' }}>{card.detail}</p>
           </Link>
         ))}
