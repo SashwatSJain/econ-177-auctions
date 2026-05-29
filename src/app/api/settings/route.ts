@@ -11,15 +11,16 @@ export type ClassSchedule = {
 
 export async function GET() {
   const admin = createAdminSupabaseClient()
-  const { data, error } = await admin
-    .from('app_settings')
-    .select('location_mode, class_schedule')
-    .single()
+
+  const [{ data: settings, error }, { data: quarter }] = await Promise.all([
+    admin.from('app_settings').select('location_mode').single(),
+    admin.from('quarters').select('class_schedule').eq('is_active', true).single(),
+  ])
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({
-    location_mode: data.location_mode as LocationMode,
-    class_schedule: (data.class_schedule ?? null) as ClassSchedule | null,
+    location_mode: settings.location_mode as LocationMode,
+    class_schedule: (quarter?.class_schedule ?? null) as ClassSchedule | null,
   })
 }
 
@@ -27,14 +28,16 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json()
   const admin = createAdminSupabaseClient()
 
-  const update: Record<string, unknown> = {}
-
   if ('location_mode' in body) {
     const valid: LocationMode[] = ['off', 'optional', 'required']
     if (!valid.includes(body.location_mode)) {
       return NextResponse.json({ error: 'location_mode must be off, optional, or required' }, { status: 400 })
     }
-    update.location_mode = body.location_mode
+    const { error } = await admin
+      .from('app_settings')
+      .update({ location_mode: body.location_mode })
+      .eq('id', 1)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
   if ('class_schedule' in body) {
@@ -49,23 +52,22 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ error: 'Invalid class_schedule format' }, { status: 400 })
       }
     }
-    update.class_schedule = s
+    const { error } = await admin
+      .from('quarters')
+      .update({ class_schedule: s })
+      .eq('is_active', true)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  if (Object.keys(update).length === 0) {
-    return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
-  }
+  // Return merged state
+  const [{ data: settings, error: e2 }, { data: quarter }] = await Promise.all([
+    admin.from('app_settings').select('location_mode').single(),
+    admin.from('quarters').select('class_schedule').eq('is_active', true).single(),
+  ])
 
-  const { data, error } = await admin
-    .from('app_settings')
-    .update(update)
-    .eq('id', 1)
-    .select('location_mode, class_schedule')
-    .single()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (e2) return NextResponse.json({ error: e2.message }, { status: 500 })
   return NextResponse.json({
-    location_mode: data.location_mode as LocationMode,
-    class_schedule: (data.class_schedule ?? null) as ClassSchedule | null,
+    location_mode: settings.location_mode as LocationMode,
+    class_schedule: (quarter?.class_schedule ?? null) as ClassSchedule | null,
   })
 }

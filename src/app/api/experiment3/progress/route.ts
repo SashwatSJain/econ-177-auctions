@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { buildExperiment3Progress } from '@/lib/experiment3'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
+import { getActiveQuarterId } from '@/lib/get-quarter-id'
 import type { Experiment3Round } from '@/lib/types'
 
 export async function GET(req: NextRequest) {
@@ -14,10 +15,16 @@ export async function GET(req: NextRequest) {
 
   try {
     const admin = createAdminSupabaseClient()
+    const quarterId = await getActiveQuarterId(admin)
+    if (!quarterId) {
+      return NextResponse.json(buildExperiment3Progress(studentId, []))
+    }
+
     const { data, error } = await admin
       .from('experiment3_rounds')
       .select('*')
       .eq('student_id', studentId)
+      .eq('quarter_id', quarterId)
       .order('global_round', { ascending: true })
 
     if (error) throw error

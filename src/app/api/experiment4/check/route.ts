@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
+import { getActiveQuarterId } from '@/lib/get-quarter-id'
 
 // GET /api/experiment4/check?student_id=...
 export async function GET(req: NextRequest) {
@@ -11,10 +12,14 @@ export async function GET(req: NextRequest) {
   }
 
   const admin = createAdminSupabaseClient()
+  const quarterId = await getActiveQuarterId(admin)
+  if (!quarterId) return NextResponse.json({ submitted: false })
+
   const { count } = await admin
     .from('experiment4_responses')
     .select('id', { count: 'exact', head: true })
     .eq('student_id', student_id.trim().toLowerCase())
+    .eq('quarter_id', quarterId)
 
   return NextResponse.json({ submitted: (count ?? 0) > 0 })
 }

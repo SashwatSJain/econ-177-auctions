@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, Fragment } from 'react'
 import { Stat, Exp4ScatterChart, filterExp4Outliers } from './charts'
 import type { Experiment4Response } from '@/lib/types'
+import { useQuarterParam, withQuarter } from '@/lib/use-quarter-param'
 
 const EXP4_TABS = [
   { key: 'bid_2' as const, label: '2 Bidders' },
@@ -98,6 +99,7 @@ function Experiment4Charts({ rows }: { rows: Experiment4Response[] }) {
 }
 
 export default function Exp4Results() {
+  const quarter = useQuarterParam()
   const [rows, setRows] = useState<Experiment4Response[]>([])
   const [loading, setLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -114,12 +116,12 @@ export default function Exp4Results() {
   const fetchRows = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/experiment4')
+      const res = await fetch(withQuarter('/api/experiment4', quarter))
       if (res.ok) setRows(await res.json())
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [quarter])
 
   async function handleDelete(id: string) {
     if (!confirm('Delete this submission?')) return

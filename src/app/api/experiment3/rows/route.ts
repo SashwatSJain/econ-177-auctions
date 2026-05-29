@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { resolveQuarterId } from '@/lib/get-quarter-id'
 
 export async function GET(req: NextRequest) {
   const supabase = await createServerSupabaseClient()
@@ -18,15 +19,16 @@ export async function GET(req: NextRequest) {
 
   try {
     const admin = createAdminSupabaseClient()
+    const quarterId = await resolveQuarterId(admin, searchParams.get('quarter'))
+
     let query = admin
       .from('experiment3_rounds')
       .select('*')
       .order('created_at', { ascending: true })
       .limit(10000)
 
-    if (treatmentKey) {
-      query = query.eq('treatment_key', treatmentKey)
-    }
+    if (quarterId) query = query.eq('quarter_id', quarterId)
+    if (treatmentKey) query = query.eq('treatment_key', treatmentKey)
 
     const { data, error } = await query
 

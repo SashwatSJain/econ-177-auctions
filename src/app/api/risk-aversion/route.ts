@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { computeClassResults, invalidateRiskAversionCache } from '@/lib/risk-aversion-results'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
+import { getActiveQuarterId, resolveQuarterId } from '@/lib/get-quarter-id'
 import type { RiskAversionResponse } from '@/lib/types'
 
 const C_VALUES = [10, 20, 30, 40, 50, 60, 70, 80, 90]
@@ -41,10 +42,14 @@ export async function POST(req: NextRequest) {
   const id = student_id.trim().toLowerCase()
   const admin = createAdminSupabaseClient()
 
+  const quarterId = await getActiveQuarterId(admin)
+  if (!quarterId) return NextResponse.json({ error: 'No active quarter' }, { status: 500 })
+
   const { count } = await admin
     .from('risk_aversion_responses')
     .select('id', { count: 'exact', head: true })
     .eq('student_id', id)
+    .eq('quarter_id', quarterId)
 
   if (count && count > 0) {
     return NextResponse.json({ error: 'Already submitted' }, { status: 409 })
@@ -76,12 +81,16 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const raw = searchParams.get('raw') === 'true'
 
-    const supabase = createAdminSupabaseClient()
-    const { data, error } = await supabase
+    const admin = createAdminSupabaseClient()
+    const quarterId = await resolveQuarterId(admin, searchParams.get('quarter'))
+
+    let query = admin
       .from('risk_aversion_responses')
       .select('*')
       .order('created_at', { ascending: true })
+    if (quarterId) query = query.eq('quarter_id', quarterId)
 
+    const { data, error } = await query
     if (error) throw error
 
     if (raw) {

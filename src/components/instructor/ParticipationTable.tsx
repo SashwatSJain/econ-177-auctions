@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import type { ParticipationRow, ExpParticipation } from '@/app/api/admin/participation/route'
 import type { InferredDateResult } from '@/app/api/settings/inferred-dates/route'
+import { useQuarterParam, withQuarter } from '@/lib/use-quarter-param'
 
 const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -72,6 +73,7 @@ function Check({ on }: { on: ExpParticipation }) {
 }
 
 export default function ParticipationTable() {
+  const quarter = useQuarterParam()
   const [rows, setRows] = useState<ParticipationRow[]>([])
   const [loading, setLoading] = useState(true)
   const [inferredDates, setInferredDates] = useState<InferredDateResult[]>([])
@@ -102,8 +104,8 @@ export default function ParticipationTable() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/admin/participation').then((r) => r.ok ? r.json() : []),
-      fetch('/api/settings/inferred-dates').then((r) => r.ok ? r.json() : []),
+      fetch(withQuarter('/api/admin/participation', quarter)).then((r) => r.ok ? r.json() : []),
+      fetch(withQuarter('/api/settings/inferred-dates', quarter)).then((r) => r.ok ? r.json() : []),
     ]).then(([participation, dates]) => {
       setRows(participation)
       setInferredDates(dates)

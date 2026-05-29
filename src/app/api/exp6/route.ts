@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
+import { getActiveQuarterId } from '@/lib/get-quarter-id'
 
 const SESSION = 'default'
 
@@ -7,6 +8,7 @@ const SESSION = 'default'
 export async function GET(req: NextRequest) {
   const nb = Number(req.nextUrl.searchParams.get('num_bidders'))
   const admin = createAdminSupabaseClient()
+  const quarterId = await getActiveQuarterId(admin)
 
   let query = admin
     .from('exp6_allpay')
@@ -14,9 +16,8 @@ export async function GET(req: NextRequest) {
     .eq('session_key', SESSION)
     .order('created_at', { ascending: true })
 
-  if ([2, 5, 10].includes(nb)) {
-    query = query.eq('num_bidders', nb)
-  }
+  if (quarterId) query = query.eq('quarter_id', quarterId)
+  if ([2, 5, 10].includes(nb)) query = query.eq('num_bidders', nb)
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -44,21 +45,24 @@ export async function POST(req: NextRequest) {
   const student_id = raw.trim().toLowerCase()
   const bid = Math.round(bidNum * 100) / 100
   const admin = createAdminSupabaseClient()
+  const quarterId = await getActiveQuarterId(admin)
+  if (!quarterId) return NextResponse.json({ error: 'No active quarter' }, { status: 500 })
 
-  // Return existing submission if already recorded
+  // Return existing submission if already recorded for this quarter
   const { data: existing } = await admin
     .from('exp6_allpay')
     .select('*')
     .eq('session_key', SESSION)
     .eq('student_id', student_id)
     .eq('num_bidders', num_bidders)
+    .eq('quarter_id', quarterId)
     .maybeSingle()
 
   if (existing) return NextResponse.json(existing)
 
   const { data, error } = await admin
     .from('exp6_allpay')
-    .insert({ session_key: SESSION, student_id, num_bidders, bid })
+    .insert({ session_key: SESSION, student_id, num_bidders, bid, quarter_id: quarterId })
     .select()
     .single()
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Stat, Exp1BidChart } from './charts'
 import { AUCTION_CONFIGS, TOTAL_ROUNDS } from '@/lib/auction-config'
+import { useQuarterParam, withQuarter } from '@/lib/use-quarter-param'
 import type { Bid } from '@/lib/types'
 
 function computeRoundRevenue(roundBids: Bid[]): number {
@@ -20,6 +21,7 @@ function getRegressionBids(auctionKey: string, bids: Bid[]): { pv: number; bid: 
 type SortCol = 'student_id' | 'round' | 'private_value' | 'amount' | 'ratio' | 'created_at'
 
 export default function Exp1Results() {
+  const quarter = useQuarterParam()
   const [selectedAuction, setSelectedAuction] = useState(AUCTION_CONFIGS[0].key)
   const [selectedRound, setSelectedRound] = useState<number | 'all'>('all')
   const [bids, setBids] = useState<Bid[]>([])
@@ -33,12 +35,12 @@ export default function Exp1Results() {
   const fetchBids = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/bids?auction_type=${selectedAuction}`)
+      const res = await fetch(withQuarter(`/api/bids?auction_type=${selectedAuction}`, quarter))
       if (res.ok) setBids(await res.json())
     } finally {
       setLoading(false)
     }
-  }, [selectedAuction])
+  }, [selectedAuction, quarter])
 
   useEffect(() => { fetchBids() }, [fetchBids])
 

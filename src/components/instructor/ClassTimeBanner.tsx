@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { InferredDateResult } from '@/app/api/settings/inferred-dates/route'
+import { useQuarterParam, withQuarter } from '@/lib/use-quarter-param'
 
 const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
@@ -11,14 +12,15 @@ function formatDate(dateStr: string): string {
 }
 
 export default function ClassTimeBanner({ exp }: { exp: number }) {
+  const quarter = useQuarterParam()
   const [data, setData] = useState<InferredDateResult | null>(null)
 
   useEffect(() => {
-    fetch(`/api/settings/inferred-dates?exp=${exp}`)
+    fetch(withQuarter(`/api/settings/inferred-dates?exp=${exp}`, quarter))
       .then((r) => r.ok ? r.json() : null)
       .then((d) => setData(d))
       .catch(() => {})
-  }, [exp])
+  }, [exp, quarter])
 
   if (!data || !data.inferredDate) return null
 

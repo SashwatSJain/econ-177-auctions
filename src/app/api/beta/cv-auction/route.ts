@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
+import { getActiveQuarterId, resolveQuarterId } from '@/lib/get-quarter-id'
 
 const SESSION = 'default'
 
@@ -7,12 +8,15 @@ const SESSION = 'default'
 export async function GET(req: NextRequest) {
   const variant = req.nextUrl.searchParams.get('variant')
   const admin = createAdminSupabaseClient()
+  const quarterId = await resolveQuarterId(admin, req.nextUrl.searchParams.get('quarter'))
+
   let query = admin
     .from('beta_cv_auction')
     .select('*')
     .eq('session_key', SESSION)
     .order('created_at', { ascending: true })
 
+  if (quarterId) query = query.eq('quarter_id', quarterId)
   if (variant === 'integer' || variant === 'continuous') {
     query = query.eq('variant', variant)
   }
@@ -27,8 +31,9 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const variant = body?.variant === 'continuous' ? 'continuous' : 'integer'
   const admin = createAdminSupabaseClient()
+  const quarterId = await getActiveQuarterId(admin)
 
-  const { data: unpaired } = await admin
+  let unpairedQuery = admin
     .from('beta_cv_auction')
     .select('id')
     .eq('session_key', SESSION)
@@ -36,6 +41,9 @@ export async function POST(req: NextRequest) {
     .is('pair_id', null)
     .not('bid', 'is', null)
     .order('created_at', { ascending: true })
+  if (quarterId) unpairedQuery = unpairedQuery.eq('quarter_id', quarterId)
+
+  const { data: unpaired } = await unpairedQuery
 
   const pool = [...(unpaired ?? [])].sort(() => Math.random() - 0.5)
   let paired = 0

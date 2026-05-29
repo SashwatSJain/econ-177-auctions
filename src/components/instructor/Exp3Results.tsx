@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { Stat, Exp3LineChart, Exp3DualLineChart, ChartProps } from './charts'
 import { EXPERIMENT3_TREATMENTS } from '@/lib/experiment3-config'
 import type { Experiment3Round } from '@/lib/types'
+import { useQuarterParam, withQuarter } from '@/lib/use-quarter-param'
 
 const PAIRED_TREATMENT: Record<string, string> = {
   'exp3-1': 'exp3-2',
@@ -194,6 +195,7 @@ function Experiment3Charts({
 }
 
 export default function Exp3Results() {
+  const quarter = useQuarterParam()
   const [selectedTreatmentKey, setSelectedTreatmentKey] = useState(EXPERIMENT3_TREATMENTS[0].key)
   const [selectedRound, setSelectedRound] = useState<number | 'all'>('all')
   const [allRows, setAllRows] = useState<Experiment3Round[]>([])
@@ -202,13 +204,14 @@ export default function Exp3Results() {
   const cacheRef = useRef<Record<string, Experiment3Round[]>>({})
 
   const fetchTreatmentRows = useCallback(async (key: string): Promise<Experiment3Round[]> => {
-    if (cacheRef.current[key]) return cacheRef.current[key]
-    const res = await fetch(`/api/experiment3/rows?treatment_key=${encodeURIComponent(key)}`)
+    const cacheKey = `${key}:${quarter ?? ''}`
+    if (cacheRef.current[cacheKey]) return cacheRef.current[cacheKey]
+    const res = await fetch(withQuarter(`/api/experiment3/rows?treatment_key=${encodeURIComponent(key)}`, quarter))
     if (!res.ok) return []
     const rows: Experiment3Round[] = await res.json()
-    cacheRef.current = { ...cacheRef.current, [key]: rows }
+    cacheRef.current = { ...cacheRef.current, [cacheKey]: rows }
     return rows
-  }, [])
+  }, [quarter])
 
   const fetchRows = useCallback(async () => {
     setLoading(true)

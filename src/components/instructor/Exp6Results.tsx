@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Stat, Exp6BidCdfChart } from './charts'
 import type { AllPayEntry } from '@/lib/types'
+import { useQuarterParam, withQuarter } from '@/lib/use-quarter-param'
 
 type Tab = 2 | 5 | 10 | 'lookup'
 
@@ -175,6 +176,7 @@ function LookupPanel() {
 // ── Main dashboard ────────────────────────────────────────────────────────────
 
 export default function Exp6Results() {
+  const quarter = useQuarterParam()
   const [tab, setTab] = useState<Tab>(2)
   const [rows, setRows] = useState<AllPayEntry[]>([])
   const [loading, setLoading] = useState(false)
@@ -188,27 +190,27 @@ export default function Exp6Results() {
 
   const fetchAllBids = useCallback(async () => {
     const [r2, r5, r10] = await Promise.all([
-      fetch('/api/exp6?num_bidders=2').then((r) => r.ok ? r.json() as Promise<AllPayEntry[]> : []),
-      fetch('/api/exp6?num_bidders=5').then((r) => r.ok ? r.json() as Promise<AllPayEntry[]> : []),
-      fetch('/api/exp6?num_bidders=10').then((r) => r.ok ? r.json() as Promise<AllPayEntry[]> : []),
+      fetch(withQuarter('/api/exp6?num_bidders=2', quarter)).then((r) => r.ok ? r.json() as Promise<AllPayEntry[]> : []),
+      fetch(withQuarter('/api/exp6?num_bidders=5', quarter)).then((r) => r.ok ? r.json() as Promise<AllPayEntry[]> : []),
+      fetch(withQuarter('/api/exp6?num_bidders=10', quarter)).then((r) => r.ok ? r.json() as Promise<AllPayEntry[]> : []),
     ])
     setAllBids({
       2:  (r2  as AllPayEntry[]).filter((e) => e.bid !== null).map((e) => Number(e.bid)),
       5:  (r5  as AllPayEntry[]).filter((e) => e.bid !== null).map((e) => Number(e.bid)),
       10: (r10 as AllPayEntry[]).filter((e) => e.bid !== null).map((e) => Number(e.bid)),
     })
-  }, [])
+  }, [quarter])
 
   const fetchRows = useCallback(async () => {
     if (tab === 'lookup') return
     setLoading(true)
     try {
-      const res = await fetch(`/api/exp6?num_bidders=${tab}`)
+      const res = await fetch(withQuarter(`/api/exp6?num_bidders=${tab}`, quarter))
       if (res.ok) setRows(await res.json())
     } finally {
       setLoading(false)
     }
-  }, [tab])
+  }, [tab, quarter])
 
   useEffect(() => { fetchRows() }, [fetchRows])
   useEffect(() => { fetchAllBids() }, [fetchAllBids])

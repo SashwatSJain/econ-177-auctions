@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
+import { getActiveQuarterId } from '@/lib/get-quarter-id'
 
 const SESSION = 'default'
 
@@ -16,6 +17,8 @@ export async function GET(req: NextRequest) {
   }
 
   const admin = createAdminSupabaseClient()
+  const quarterId = await getActiveQuarterId(admin)
+  if (!quarterId) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const { data: own } = await admin
     .from('exp6_allpay')
@@ -23,6 +26,7 @@ export async function GET(req: NextRequest) {
     .eq('session_key', SESSION)
     .eq('student_id', student_id)
     .eq('num_bidders', num_bidders)
+    .eq('quarter_id', quarterId)
     .maybeSingle()
 
   if (!own) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -34,6 +38,7 @@ export async function GET(req: NextRequest) {
       .select('id')
       .eq('session_key', SESSION)
       .eq('num_bidders', num_bidders)
+      .eq('quarter_id', quarterId)
       .not('group_id', 'is', null)
       .limit(1)
       .maybeSingle()

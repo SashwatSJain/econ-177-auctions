@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import type { AttendanceRecord } from '@/lib/types'
+import { useQuarterParam, withQuarter } from '@/lib/use-quarter-param'
 
 const ATTENDANCE_URL = 'https://econ-177.vercel.app/attendance'
 
@@ -57,6 +58,7 @@ function QRModal({ onClose }: { onClose: () => void }) {
 }
 
 export default function AttendanceResults() {
+  const quarter = useQuarterParam()
   const [records, setRecords] = useState<AttendanceRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [showQR, setShowQR] = useState(false)
@@ -68,12 +70,12 @@ export default function AttendanceResults() {
   const fetchRecords = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/attendance')
+      const res = await fetch(withQuarter('/api/attendance', quarter))
       if (res.ok) setRecords(await res.json())
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [quarter])
 
   useEffect(() => { fetchRecords() }, [fetchRecords])
 

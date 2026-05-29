@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
 import type { ClassSchedule } from '../../settings/route'
 
@@ -64,11 +64,18 @@ function modeDateFromRows(rows: { student_id: string; created_at: string }[]): s
 
 type StudentMap = Map<string, { ts: string | null; late: boolean }>
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const admin = createAdminSupabaseClient()
+  const quarterParam = req.nextUrl.searchParams.get('quarter')
 
-  const { data: settings } = await admin.from('app_settings').select('class_schedule').single()
-  const schedule = (settings?.class_schedule ?? null) as ClassSchedule | null
+  const quarterQuery = quarterParam
+    ? admin.from('quarters').select('id, class_schedule').eq('id', quarterParam).single()
+    : admin.from('quarters').select('id, class_schedule').eq('is_active', true).single()
+  const { data: quarterData } = await quarterQuery
+  const quarterId = quarterData?.id ?? null
+  const schedule = (quarterData?.class_schedule ?? null) as ClassSchedule | null
+
+  if (!quarterId) return NextResponse.json([])
 
   const [
     { data: e1Days },
@@ -78,12 +85,12 @@ export async function GET() {
     { data: e5Rows },
     { data: e6Rows },
   ] = await Promise.all([
-    admin.from('v_bids_student_days').select('student_id, date_la'),
-    admin.from('risk_aversion_responses').select('student_id, created_at'),
-    admin.from('v_exp3_student_days').select('student_id, date_la'),
-    admin.from('experiment4_responses').select('student_id, created_at'),
-    admin.from('beta_cv_auction').select('student_id, created_at').not('bid', 'is', null),
-    admin.from('exp6_allpay').select('student_id, created_at').not('bid', 'is', null),
+    admin.from('v_bids_student_days').select('student_id, date_la').eq('quarter_id', quarterId),
+    admin.from('risk_aversion_responses').select('student_id, created_at').eq('quarter_id', quarterId),
+    admin.from('v_exp3_student_days').select('student_id, date_la').eq('quarter_id', quarterId),
+    admin.from('experiment4_responses').select('student_id, created_at').eq('quarter_id', quarterId),
+    admin.from('beta_cv_auction').select('student_id, created_at').eq('quarter_id', quarterId).not('bid', 'is', null),
+    admin.from('exp6_allpay').select('student_id, created_at').eq('quarter_id', quarterId).not('bid', 'is', null),
   ])
 
   // High-volume tables: use the day-first view (one row per student-day) to avoid row cap.
@@ -106,6 +113,7 @@ export async function GET() {
     const { data: modeDateFirst } = await admin
       .from(dayFirstView)
       .select('student_id, first_at')
+      .eq('quarter_id', quarterId)
       .eq('date_la', modeDate)
 
     const result: StudentMap = new Map()
@@ -122,6 +130,7 @@ export async function GET() {
       const { data: nonModeFirst } = await admin
         .from(dayFirstView)
         .select('student_id, first_at')
+        .eq('quarter_id', quarterId)
         .in('student_id', nonModeDateIds)
         .order('first_at', { ascending: true })
       const earliest = new Map<string, string>()

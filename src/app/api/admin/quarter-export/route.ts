@@ -1,9 +1,15 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
+import { resolveQuarterId } from '@/lib/get-quarter-id'
 import * as XLSX from 'xlsx'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const admin = createAdminSupabaseClient()
+  const quarterParam = req.nextUrl.searchParams.get('quarter')
+  const quarterId = await resolveQuarterId(admin, quarterParam)
+  if (!quarterId) {
+    return NextResponse.json({ error: 'No active quarter' }, { status: 404 })
+  }
 
   const [
     { data: bids },
@@ -14,13 +20,13 @@ export async function GET() {
     { data: exp6 },
     { data: attendance },
   ] = await Promise.all([
-    admin.from('bids').select('*').order('created_at', { ascending: true }),
-    admin.from('risk_aversion_responses').select('*').order('created_at', { ascending: true }),
-    admin.from('experiment3_rounds').select('*').order('global_round', { ascending: true }),
-    admin.from('experiment4_responses').select('*').order('created_at', { ascending: true }),
-    admin.from('beta_cv_auction').select('*').order('created_at', { ascending: true }),
-    admin.from('exp6_allpay').select('*').order('created_at', { ascending: true }),
-    admin.from('attendance_records').select('*').order('submitted_at', { ascending: true }),
+    admin.from('bids').select('*').eq('quarter_id', quarterId).order('created_at', { ascending: true }),
+    admin.from('risk_aversion_responses').select('*').eq('quarter_id', quarterId).order('created_at', { ascending: true }),
+    admin.from('experiment3_rounds').select('*').eq('quarter_id', quarterId).order('global_round', { ascending: true }),
+    admin.from('experiment4_responses').select('*').eq('quarter_id', quarterId).order('created_at', { ascending: true }),
+    admin.from('beta_cv_auction').select('*').eq('quarter_id', quarterId).order('created_at', { ascending: true }),
+    admin.from('exp6_allpay').select('*').eq('quarter_id', quarterId).order('created_at', { ascending: true }),
+    admin.from('attendance_records').select('*').eq('quarter_id', quarterId).order('submitted_at', { ascending: true }),
   ])
 
   const wb = XLSX.utils.book_new()

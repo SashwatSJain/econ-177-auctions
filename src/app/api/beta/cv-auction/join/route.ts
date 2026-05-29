@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
+import { getActiveQuarterId } from '@/lib/get-quarter-id'
 
 const SESSION = 'default'
 
@@ -15,6 +16,8 @@ export async function POST(req: NextRequest) {
   }
   const student_id = raw.trim().toLowerCase()
   const admin = createAdminSupabaseClient()
+  const quarterId = await getActiveQuarterId(admin)
+  if (!quarterId) return NextResponse.json({ error: 'No active quarter' }, { status: 500 })
 
   const { data: existing } = await admin
     .from('beta_cv_auction')
@@ -22,6 +25,7 @@ export async function POST(req: NextRequest) {
     .eq('session_key', SESSION)
     .eq('student_id', student_id)
     .eq('variant', variant)
+    .eq('quarter_id', quarterId)
     .maybeSingle()
 
   if (existing) return NextResponse.json(existing)
@@ -30,7 +34,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await admin
     .from('beta_cv_auction')
-    .insert({ session_key: SESSION, student_id, variant, half_value })
+    .insert({ session_key: SESSION, student_id, variant, half_value, quarter_id: quarterId })
     .select()
     .single()
 

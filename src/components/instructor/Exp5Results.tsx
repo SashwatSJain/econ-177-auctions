@@ -3,12 +3,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Stat, Exp5BidCdfChart } from './charts'
 import type { BetaCVEntry } from '@/lib/types'
+import { useQuarterParam, withQuarter } from '@/lib/use-quarter-param'
 
 function fmtBid(n: number, variant: 'integer' | 'continuous') {
   return variant === 'continuous' ? `$${Number(n).toFixed(2)}` : `$${Number(n)}`
 }
 
 export default function Exp5Results() {
+  const quarter = useQuarterParam()
   const [rows, setRows] = useState<BetaCVEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [variant, setVariant] = useState<'integer' | 'continuous'>('integer')
@@ -20,12 +22,12 @@ export default function Exp5Results() {
   const fetchRows = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/beta/cv-auction?variant=${variant}`)
+      const res = await fetch(withQuarter(`/api/beta/cv-auction?variant=${variant}`, quarter))
       if (res.ok) setRows(await res.json())
     } finally {
       setLoading(false)
     }
-  }, [variant])
+  }, [variant, quarter])
 
   useEffect(() => { fetchRows() }, [fetchRows])
 

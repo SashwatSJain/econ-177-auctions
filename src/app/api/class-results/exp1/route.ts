@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
+import { resolveQuarterId } from '@/lib/get-quarter-id'
 import { getAuctionConfig } from '@/lib/auction-config'
 
 // Public (no auth) — returns only private_value and amount for charting.
@@ -12,10 +13,14 @@ export async function GET(req: NextRequest) {
   }
 
   const admin = createAdminSupabaseClient()
+  const quarterId = await resolveQuarterId(admin, req.nextUrl.searchParams.get('quarter'))
+  if (!quarterId) return NextResponse.json([])
+
   const { data, error } = await admin
     .from('bids')
     .select('private_value, amount')
     .eq('auction_type', auctionType)
+    .eq('quarter_id', quarterId)
     .order('created_at', { ascending: true })
     .limit(10000)
 

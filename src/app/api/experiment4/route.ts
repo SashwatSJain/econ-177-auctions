@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
+import { getActiveQuarterId, resolveQuarterId } from '@/lib/get-quarter-id'
 
 // GET /api/experiment4 — returns all rows (instructor use)
-export async function GET() {
+export async function GET(req: NextRequest) {
   const admin = createAdminSupabaseClient()
+  const quarterId = await resolveQuarterId(admin, req.nextUrl.searchParams.get('quarter'))
   const [{ data, error }, { data: allSamples }] = await Promise.all([
-    admin.from('experiment4_responses').select('*').order('created_at', { ascending: true }),
+    quarterId
+      ? admin.from('experiment4_responses').select('*').eq('quarter_id', quarterId).order('created_at', { ascending: true })
+      : admin.from('experiment4_responses').select('*').order('created_at', { ascending: true }),
     admin.from('experiment4_samples').select('student_id, ref_id, created_at').order('created_at', { ascending: true }),
   ])
 
@@ -58,10 +62,14 @@ export async function POST(req: NextRequest) {
   const id = student_id.trim().toLowerCase()
   const admin = createAdminSupabaseClient()
 
+  const activeQuarterId = await getActiveQuarterId(admin)
+  if (!activeQuarterId) return NextResponse.json({ error: 'No active quarter' }, { status: 500 })
+
   const { count } = await admin
     .from('experiment4_responses')
     .select('id', { count: 'exact', head: true })
     .eq('student_id', id)
+    .eq('quarter_id', activeQuarterId)
 
   if (count && count > 0) {
     return NextResponse.json({ error: 'Already submitted' }, { status: 409 })

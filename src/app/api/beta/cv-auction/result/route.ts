@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
+import { getActiveQuarterId } from '@/lib/get-quarter-id'
 
 const SESSION = 'default'
 
@@ -10,6 +11,8 @@ export async function GET(req: NextRequest) {
   if (!student_id) return NextResponse.json({ error: 'Missing student_id' }, { status: 400 })
 
   const admin = createAdminSupabaseClient()
+  const quarterId = await getActiveQuarterId(admin)
+  if (!quarterId) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const { data: own } = await admin
     .from('beta_cv_auction')
@@ -17,6 +20,7 @@ export async function GET(req: NextRequest) {
     .eq('session_key', SESSION)
     .eq('student_id', student_id)
     .eq('variant', variant)
+    .eq('quarter_id', quarterId)
     .maybeSingle()
 
   if (!own) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -26,6 +30,7 @@ export async function GET(req: NextRequest) {
       .select('id')
       .eq('session_key', SESSION)
       .eq('variant', variant)
+      .eq('quarter_id', quarterId)
       .not('pair_id', 'is', null)
       .limit(1)
       .maybeSingle()

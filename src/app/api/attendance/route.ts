@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
+import { resolveQuarterId } from '@/lib/get-quarter-id'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const admin = createAdminSupabaseClient()
-  const { data, error } = await admin
+  const quarterId = await resolveQuarterId(admin, req.nextUrl.searchParams.get('quarter'))
+
+  let query = admin
     .from('attendance_records')
     .select('*')
     .order('submitted_at', { ascending: false })
+  if (quarterId) query = query.eq('quarter_id', quarterId)
 
+  const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data ?? [])
 }

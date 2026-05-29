@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Stat } from './charts'
 import type { RiskAversionResponse } from '@/lib/types'
+import { useQuarterParam, withQuarter } from '@/lib/use-quarter-param'
 
 const RA_C_VALUES = [10, 20, 30, 40, 50, 60, 70, 80, 90]
 const RA_COL_NAMES = ['p_10','p_20','p_30','p_40','p_50','p_60','p_70','p_80','p_90'] as const
@@ -20,18 +21,19 @@ function estimateAlpha(row: RiskAversionResponse): number | null {
 }
 
 export default function Exp2Results() {
+  const quarter = useQuarterParam()
   const [rows, setRows] = useState<RiskAversionResponse[]>([])
   const [loading, setLoading] = useState(false)
 
   const fetchRows = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/risk-aversion?raw=true')
+      const res = await fetch(withQuarter('/api/risk-aversion?raw=true', quarter))
       if (res.ok) setRows(await res.json())
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [quarter])
 
   useEffect(() => { fetchRows() }, [fetchRows])
 

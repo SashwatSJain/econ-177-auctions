@@ -106,14 +106,25 @@ const TABLES: { exp: number; table: string; daysView: string | null }[] = [
 export async function GET(req: NextRequest) {
   const expParam = req.nextUrl.searchParams.get('exp')
   const expFilter = expParam ? Number(expParam) : null
+  const quarterParam = req.nextUrl.searchParams.get('quarter')
 
   const admin = createAdminSupabaseClient()
 
-  const { data: settings } = await admin
-    .from('app_settings')
-    .select('class_schedule')
-    .single()
-  const schedule = (settings?.class_schedule ?? null) as ClassSchedule | null
+  const quarterQuery = quarterParam
+    ? admin.from('quarters').select('id, class_schedule').eq('id', quarterParam).single()
+    : admin.from('quarters').select('id, class_schedule').eq('is_active', true).single()
+  const { data: quarterData } = await quarterQuery
+  const quarterId = quarterData?.id ?? null
+  const schedule = (quarterData?.class_schedule ?? null) as ClassSchedule | null
+
+  if (!quarterId) {
+    const empty = (TABLES.filter(t => !expFilter || t.exp === expFilter)).map(({ exp }) => ({
+      exp, inferredDate: null, dayOfWeek: null, totalStudents: 0,
+      onTimeStudents: null, outOfWindowStudents: null, inClass: null,
+      scheduleStart: null, scheduleEnd: null,
+    }))
+    return NextResponse.json(expFilter ? (empty[0] ?? null) : empty)
+  }
 
   const targets = expFilter ? TABLES.filter((t) => t.exp === expFilter) : TABLES
 
@@ -124,6 +135,7 @@ export async function GET(req: NextRequest) {
         const { data: dayRows } = await admin
           .from(daysView)
           .select('student_id, date_la')
+          .eq('quarter_id', quarterId)
         const days: { student_id: string; date_la: string }[] = dayRows ?? []
 
         const totalStudents = new Set(days.map((r) => r.student_id)).size
@@ -148,6 +160,7 @@ export async function GET(req: NextRequest) {
           const { data: windowRows } = await admin
             .from(table)
             .select('student_id, created_at')
+            .eq('quarter_id', quarterId)
             .gte('created_at', new Date(`${modeDate}T00:00:00-08:00`).toISOString())
             .lte('created_at', new Date(`${modeDate}T23:59:59-07:00`).toISOString())
           const modeRows: { student_id: string; created_at: string }[] = windowRows ?? []
@@ -161,7 +174,7 @@ export async function GET(req: NextRequest) {
       }
 
       // Low-volume tables: fetch all rows directly (always under 1000-row cap)
-      const { data } = await admin.from(table).select('student_id, created_at')
+      const { data } = await admin.from(table).select('student_id, created_at').eq('quarter_id', quarterId)
       const rows: { student_id: string; created_at: string }[] = data ?? []
 
       const totalStudents = new Set(rows.map((r) => r.student_id)).size

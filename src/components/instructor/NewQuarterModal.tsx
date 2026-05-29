@@ -1,48 +1,56 @@
 'use client'
 
 import { useState } from 'react'
+import type { ClassSchedule } from '@/app/api/settings/route'
 
-export default function NewQuarterModal({ onClose }: { onClose: () => void }) {
-  const [step, setStep] = useState<'confirm' | 'downloading' | 'deleting' | 'done'>('confirm')
-  const [confirmText, setConfirmText] = useState('')
-  const [downloaded, setDownloaded] = useState(false)
+const DAYS = [
+  { label: 'Mon', value: 1 },
+  { label: 'Tue', value: 2 },
+  { label: 'Wed', value: 3 },
+  { label: 'Thu', value: 4 },
+  { label: 'Fri', value: 5 },
+]
+
+export default function NewQuarterModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void
+  onCreated: (name: string) => void
+}) {
+  const [name, setName] = useState('')
+  const [days, setDays] = useState<number[]>([])
+  const [start, setStart] = useState('10:00')
+  const [end, setEnd] = useState('10:50')
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const CONFIRM_PHRASE = 'new quarter'
-  const canDelete = downloaded && confirmText.toLowerCase() === CONFIRM_PHRASE
+  const canSubmit = name.trim().length > 0
 
-  async function handleDownload() {
-    setStep('downloading')
-    setError('')
-    try {
-      const res = await fetch('/api/admin/quarter-export')
-      if (!res.ok) throw new Error('Export failed')
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `econ177-${new Date().toISOString().slice(0, 10)}.xlsx`
-      a.click()
-      URL.revokeObjectURL(url)
-      setDownloaded(true)
-    } catch {
-      setError('Download failed. Please try again.')
-    } finally {
-      setStep('confirm')
-    }
+  function toggleDay(v: number) {
+    setDays((prev) => prev.includes(v) ? prev.filter((d) => d !== v) : [...prev, v].sort((a, b) => a - b))
   }
 
-  async function handleDelete() {
-    if (!canDelete) return
-    setStep('deleting')
+  async function handleCreate() {
+    if (!canSubmit) return
+    setSaving(true)
     setError('')
     try {
-      const res = await fetch('/api/admin/quarter-reset', { method: 'POST' })
-      if (!res.ok) throw new Error('Reset failed')
-      setStep('done')
-    } catch {
-      setError('Deletion failed. Please try again.')
-      setStep('confirm')
+      const schedule: ClassSchedule | null = days.length > 0 ? { days, start, end } : null
+      const res = await fetch('/api/admin/quarters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), class_schedule: schedule }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body?.error ?? 'Failed to create quarter')
+      }
+      onCreated(name.trim())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -56,107 +64,121 @@ export default function NewQuarterModal({ onClose }: { onClose: () => void }) {
         className="w-full max-w-md rounded-2xl p-6"
         style={{ background: 'var(--bg)', border: '1px solid var(--border)', boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }}
       >
-        {step === 'done' ? (
-          <div className="text-center py-4">
-            <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
-              style={{ background: '#dcfce7', border: '2px solid #16a34a' }}>
-              <span style={{ color: '#16a34a', fontSize: 20 }}>✓</span>
-            </div>
-            <h2 className="serif text-2xl mb-2" style={{ color: 'var(--text)' }}>All Clear</h2>
-            <p className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>
-              All student data has been deleted. Ready for a new quarter.
+        {/* Header */}
+        <div className="flex items-start justify-between mb-5">
+          <div>
+            <h2 className="text-base font-semibold mb-1" style={{ color: 'var(--text)' }}>Start New Quarter</h2>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Current data is archived. The new quarter starts empty.
             </p>
-            <button onClick={onClose} className="btn-gold rounded-lg px-5 py-2.5 text-sm">
-              Close
-            </button>
           </div>
-        ) : (
-          <>
-            {/* Header */}
-            <div className="flex items-start justify-between mb-5">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span style={{ color: '#dc2626', fontSize: 18 }}>⚠</span>
-                  <h2 className="text-base font-semibold" style={{ color: 'var(--text)' }}>Start New Quarter</h2>
-                </div>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  This permanently deletes all student data across every experiment and attendance.
-                </p>
+          <button
+            onClick={onClose}
+            style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Quarter name */}
+        <div className="mb-4">
+          <label className="text-xs font-semibold uppercase tracking-widest block mb-2" style={{ color: 'var(--text-muted)' }}>
+            Quarter name
+          </label>
+          <input
+            type="text"
+            className="w-full rounded-lg px-3 py-2 text-sm"
+            placeholder="e.g. Fall 2026"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && canSubmit) handleCreate() }}
+            style={{ border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
+            autoFocus
+          />
+        </div>
+
+        {/* Class schedule (optional) */}
+        <div
+          className="rounded-xl p-4 mb-5"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+        >
+          <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>
+            Class schedule (optional)
+          </p>
+
+          <div className="mb-3">
+            <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>Days</p>
+            <div className="flex gap-2">
+              {DAYS.map(({ label, value }) => {
+                const active = days.includes(value)
+                return (
+                  <button
+                    key={value}
+                    onClick={() => toggleDay(value)}
+                    className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all"
+                    style={{
+                      background: active ? 'var(--navy)' : 'transparent',
+                      color: active ? '#fff' : 'var(--text-muted)',
+                      border: `1px solid ${active ? 'var(--navy)' : 'var(--border)'}`,
+                    }}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {days.length > 0 && (
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Start</p>
+                <input
+                  type="time"
+                  value={start}
+                  onChange={(e) => setStart(e.target.value)}
+                  className="w-full rounded-lg px-3 py-1.5 text-sm"
+                  style={{ border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }}
+                />
               </div>
-              <button onClick={onClose} style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
-            </div>
-
-            {/* Step 1: Download */}
-            <div
-              className="rounded-xl p-4 mb-4"
-              style={{ background: downloaded ? '#f0fdf4' : 'var(--surface)', border: `1px solid ${downloaded ? '#86efac' : 'var(--border)'}` }}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: downloaded ? '#16a34a' : 'var(--navy)' }}>
-                  Step 1 — Download Backup
-                </p>
-                {downloaded && <span className="text-xs font-medium" style={{ color: '#16a34a' }}>✓ Downloaded</span>}
+              <div className="flex-1">
+                <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>End</p>
+                <input
+                  type="time"
+                  value={end}
+                  onChange={(e) => setEnd(e.target.value)}
+                  className="w-full rounded-lg px-3 py-1.5 text-sm"
+                  style={{ border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }}
+                />
               </div>
-              <p className="text-xs mb-3" style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                Export all data (7 tables) to an Excel file before deleting.
-              </p>
-              <button
-                onClick={handleDownload}
-                disabled={step === 'downloading'}
-                className="text-xs px-3 py-2 rounded-lg font-medium transition-all"
-                style={{
-                  background: downloaded ? 'transparent' : 'var(--navy)',
-                  color: downloaded ? '#16a34a' : '#fff',
-                  border: downloaded ? '1px solid #86efac' : '1px solid var(--navy)',
-                  cursor: step === 'downloading' ? 'wait' : 'pointer',
-                }}
-              >
-                {step === 'downloading' ? 'Downloading…' : downloaded ? '↓ Download Again' : '↓ Download Excel Backup'}
-              </button>
             </div>
+          )}
+        </div>
 
-            {/* Step 2: Delete */}
-            <div
-              className="rounded-xl p-4 mb-4"
-              style={{
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                opacity: downloaded ? 1 : 0.4,
-                pointerEvents: downloaded ? 'auto' : 'none',
-              }}
-            >
-              <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#dc2626' }}>
-                Step 2 — Confirm Deletion
-              </p>
-              <p className="text-xs mb-3" style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                Type <strong>new quarter</strong> to confirm you want to delete all data permanently.
-              </p>
-              <input
-                type="text"
-                className="w-full rounded-lg px-3 py-2 text-sm mb-3"
-                placeholder="new quarter"
-                value={confirmText}
-                onChange={(e) => setConfirmText(e.target.value)}
-                style={{ border: '1px solid var(--border)' }}
-              />
-              <button
-                onClick={handleDelete}
-                disabled={!canDelete || step === 'deleting'}
-                className="w-full rounded-lg px-4 py-2.5 text-sm font-medium transition-all"
-                style={{
-                  background: canDelete ? '#dc2626' : 'var(--border)',
-                  color: canDelete ? '#fff' : 'var(--text-muted)',
-                  border: 'none',
-                  cursor: canDelete ? 'pointer' : 'not-allowed',
-                }}
-              >
-                {step === 'deleting' ? 'Deleting…' : 'Delete All Data'}
-              </button>
-            </div>
+        {error && <p className="text-xs mb-3" style={{ color: '#dc2626' }}>{error}</p>}
 
-            {error && <p className="text-xs" style={{ color: '#dc2626' }}>{error}</p>}
-          </>
-        )}
+        <div className="flex gap-3">
+          <button
+            onClick={handleCreate}
+            disabled={!canSubmit || saving}
+            className="flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-all"
+            style={{
+              background: canSubmit ? 'var(--navy)' : 'var(--border)',
+              color: canSubmit ? '#fff' : 'var(--text-muted)',
+              border: 'none',
+              cursor: canSubmit && !saving ? 'pointer' : 'not-allowed',
+            }}
+          >
+            {saving ? 'Creating…' : 'Start Quarter'}
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 text-sm rounded-lg"
+            style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer' }}
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   )

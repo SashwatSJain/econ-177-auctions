@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
+import { getActiveQuarterId } from '@/lib/get-quarter-id'
 
 const SESSION = 'default'
 
@@ -12,8 +13,9 @@ export async function POST(req: NextRequest) {
   }
 
   const admin = createAdminSupabaseClient()
+  const quarterId = await getActiveQuarterId(admin)
 
-  const { data: ungrouped } = await admin
+  let ungroupedQuery = admin
     .from('exp6_allpay')
     .select('id')
     .eq('session_key', SESSION)
@@ -21,6 +23,9 @@ export async function POST(req: NextRequest) {
     .is('group_id', null)
     .not('bid', 'is', null)
     .order('created_at', { ascending: true })
+  if (quarterId) ungroupedQuery = ungroupedQuery.eq('quarter_id', quarterId)
+
+  const { data: ungrouped } = await ungroupedQuery
 
   const pool = [...(ungrouped ?? [])].sort(() => Math.random() - 0.5)
   let grouped = 0

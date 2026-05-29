@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createAdminSupabaseClient } from '@/lib/supabase-admin'
+import { getActiveQuarterId, resolveQuarterId } from '@/lib/get-quarter-id'
 import { getAuctionConfig, TOTAL_ROUNDS } from '@/lib/auction-config'
 
 // POST /api/bids — public, no auth required
@@ -23,15 +25,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Bid amount must be non-negative' }, { status: 400 })
   }
 
+  const admin = createAdminSupabaseClient()
+  const quarterId = await getActiveQuarterId(admin)
+  if (!quarterId) return NextResponse.json({ error: 'No active quarter' }, { status: 500 })
+
   const supabase = await createServerSupabaseClient()
 
-  // Check student hasn't already submitted this round
-  const { count } = await supabase
+  // Check student hasn't already submitted this round in the current quarter
+  const { count } = await admin
     .from('bids')
     .select('id', { count: 'exact', head: true })
     .eq('student_id', student_id.toLowerCase())
     .eq('auction_type', auction_type)
     .eq('round', round)
+    .eq('quarter_id', quarterId)
 
   if (count && count > 0) {
     return NextResponse.json({ error: 'Already submitted for this round' }, { status: 409 })
@@ -90,10 +97,13 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const auctionType = searchParams.get('auction_type')
 
-  const supabase = await createServerSupabaseClient()
+  const admin = createAdminSupabaseClient()
+  const quarterId = await resolveQuarterId(admin, searchParams.get('quarter'))
 
+  const supabase = await createServerSupabaseClient()
   let query = supabase.from('bids').select('*').order('created_at', { ascending: true }).limit(10000)
   if (auctionType) query = query.eq('auction_type', auctionType)
+  if (quarterId) query = query.eq('quarter_id', quarterId)
 
   const { data, error } = await query
 

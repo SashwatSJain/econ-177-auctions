@@ -1,9 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import NewQuarterModal from '@/components/instructor/NewQuarterModal'
 import ClassScheduleSettings from '@/components/instructor/ClassScheduleSettings'
+import type { Quarter } from '@/app/api/admin/quarters/route'
 
 const ATTENDANCE = {
   href: '/instructor/attendance',
@@ -68,12 +70,77 @@ type Tab = 'experiments' | 'settings'
 export default function InstructorOverview() {
   const [showNewQuarter, setShowNewQuarter] = useState(false)
   const [tab, setTab] = useState<Tab>('experiments')
+  const [quarters, setQuarters] = useState<Quarter[]>([])
+  const searchParams = useSearchParams()
+  const router = useRouter()
+
+  const quarterParam = searchParams.get('quarter')
+
+  useEffect(() => {
+    fetch('/api/admin/quarters')
+      .then((r) => r.json())
+      .then((data) => setQuarters(Array.isArray(data) ? data : []))
+      .catch(() => {})
+  }, [])
+
+  const activeQuarter = quarters.find((q) => q.is_active)
+  const viewingQuarter = quarterParam
+    ? quarters.find((q) => q.id === quarterParam)
+    : activeQuarter
+  const isArchiveView = viewingQuarter && !viewingQuarter.is_active
+
+  function quarterHref(base: string): string {
+    if (!isArchiveView || !viewingQuarter) return base
+    const url = new URL(base, 'http://x')
+    url.searchParams.set('quarter', viewingQuarter.id)
+    return url.pathname + url.search
+  }
+
+  function handleQuarterChange(id: string) {
+    const selected = quarters.find((q) => q.id === id)
+    if (!selected) return
+    if (selected.is_active) {
+      router.push('/instructor')
+    } else {
+      router.push(`/instructor?quarter=${id}`)
+    }
+  }
+
+  function handleQuarterCreated() {
+    // Refresh quarters list and clear the quarter param (switch to new active)
+    fetch('/api/admin/quarters')
+      .then((r) => r.json())
+      .then((data) => setQuarters(Array.isArray(data) ? data : []))
+      .catch(() => {})
+    setShowNewQuarter(false)
+    router.push('/instructor')
+  }
 
   return (
     <div>
+      {/* Quarter banner (archive mode) */}
+      {isArchiveView && (
+        <div
+          className="mb-6 rounded-xl px-4 py-3 flex items-center gap-3"
+          style={{ background: '#fef3c7', border: '1px solid #fde68a' }}
+        >
+          <span style={{ color: '#92400e', fontSize: 14 }}>📦</span>
+          <p className="text-xs font-medium" style={{ color: '#92400e' }}>
+            Viewing archived quarter: <strong>{viewingQuarter?.name}</strong>
+          </p>
+          <button
+            onClick={() => router.push('/instructor')}
+            className="ml-auto text-xs px-3 py-1 rounded-lg"
+            style={{ background: '#92400e', color: '#fff', border: 'none', cursor: 'pointer' }}
+          >
+            Back to current
+          </button>
+        </div>
+      )}
+
       {/* Tab bar + actions */}
       <div className="flex items-center justify-between mb-8 gap-3">
-        <div className="flex gap-1">
+        <div className="flex gap-1 items-center">
           {(['experiments', 'settings'] as Tab[]).map((t) => (
             <button
               key={t}
@@ -89,15 +156,40 @@ export default function InstructorOverview() {
             </button>
           ))}
         </div>
-        {tab === 'experiments' && (
-          <button
-            onClick={() => setShowNewQuarter(true)}
-            className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
-            style={{ background: 'transparent', border: '1px solid #fca5a5', color: '#dc2626', cursor: 'pointer' }}
-          >
-            New Quarter
-          </button>
-        )}
+
+        <div className="flex items-center gap-2">
+          {/* Quarter selector */}
+          {quarters.length > 0 && (
+            <select
+              value={viewingQuarter?.id ?? ''}
+              onChange={(e) => handleQuarterChange(e.target.value)}
+              className="text-xs px-2 py-1.5 rounded-lg"
+              style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
+                cursor: 'pointer',
+              }}
+            >
+              {quarters.map((q) => (
+                <option key={q.id} value={q.id}>
+                  {q.name}{q.is_active ? ' (current)' : ''}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {/* New Quarter button — only in experiments tab, not in archive mode */}
+          {tab === 'experiments' && !isArchiveView && (
+            <button
+              onClick={() => setShowNewQuarter(true)}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
+              style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer' }}
+            >
+              New Quarter
+            </button>
+          )}
+        </div>
       </div>
 
       {tab === 'settings' && (
@@ -121,7 +213,7 @@ export default function InstructorOverview() {
         {[ATTENDANCE, PARTICIPATION].map((card) => (
           <Link
             key={card.href}
-            href={card.href}
+            href={quarterHref(card.href)}
             className="exp-card group block rounded-xl p-5 transition-all"
             style={{ textDecoration: 'none' }}
           >
@@ -144,7 +236,7 @@ export default function InstructorOverview() {
         {EXPERIMENTS.map((exp) => (
           <Link
             key={exp.num}
-            href={exp.href}
+            href={quarterHref(exp.href)}
             className="exp-card group block rounded-xl p-5 transition-all"
             style={{ textDecoration: 'none' }}
           >
@@ -174,7 +266,12 @@ export default function InstructorOverview() {
       </>
       )}
 
-      {showNewQuarter && <NewQuarterModal onClose={() => setShowNewQuarter(false)} />}
+      {showNewQuarter && (
+        <NewQuarterModal
+          onClose={() => setShowNewQuarter(false)}
+          onCreated={handleQuarterCreated}
+        />
+      )}
     </div>
   )
 }

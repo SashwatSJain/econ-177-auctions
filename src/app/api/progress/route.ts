@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createAdminSupabaseClient } from '@/lib/supabase-admin'
+import { getActiveQuarterId } from '@/lib/get-quarter-id'
 import { getAuctionConfig } from '@/lib/auction-config'
 
 // GET /api/progress?student_id=...&auction_type=...  — public
@@ -16,13 +17,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid auction type' }, { status: 400 })
   }
 
-  const supabase = await createServerSupabaseClient()
+  const admin = createAdminSupabaseClient()
+  const quarterId = await getActiveQuarterId(admin)
 
-  const { count, error } = await supabase
+  let query = admin
     .from('bids')
     .select('id', { count: 'exact', head: true })
     .eq('student_id', studentId.toLowerCase())
     .eq('auction_type', auctionType)
+  if (quarterId) query = query.eq('quarter_id', quarterId)
+
+  const { count, error } = await query
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
