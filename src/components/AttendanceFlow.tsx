@@ -78,25 +78,11 @@ export default function AttendanceFlow() {
 
   // ── Identify ──────────────────────────────────────────────────────────────
 
-  async function handleIdentify() {
+  function handleIdentify() {
     const id = studentId.trim()
     if (!id) { setError('Please enter your PERM number.'); return }
     setError('')
-    setLoading(true)
-    try {
-      const res = await fetch(`/api/attendance/check?student_id=${encodeURIComponent(id)}`)
-      const json = await res.json()
-      if (json.submitted) {
-        setAlreadySubmitted(true)
-        setPanel('complete')
-      } else {
-        setPanel('form')
-      }
-    } catch {
-      setError('Network error. Please try again.')
-    } finally {
-      setLoading(false)
-    }
+    setPanel('form')
   }
 
   // ── Form ──────────────────────────────────────────────────────────────────
@@ -213,9 +199,8 @@ export default function AttendanceFlow() {
               <button
                 className="btn-gold w-full rounded-lg px-4 py-3 text-sm mt-2"
                 onClick={handleIdentify}
-                disabled={loading}
               >
-                {loading ? 'Checking…' : 'Continue →'}
+                Continue →
               </button>
             </div>
           )}
@@ -365,10 +350,10 @@ export default function AttendanceFlow() {
               ) : alreadySubmitted ? (
                 <>
                   <h2 className="serif text-3xl mb-2" style={{ color: 'var(--text)' }}>
-                    Already Recorded
+                    Already Submitted
                   </h2>
                   <p className="text-sm mb-8" style={{ color: 'var(--text-muted)' }}>
-                    Attendance for <strong>{studentId.trim()}</strong> is already on record for today.
+                    <strong>{studentId.trim()}</strong> has already submitted this code word.
                   </p>
                 </>
               ) : (
