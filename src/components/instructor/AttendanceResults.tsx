@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import type { AttendanceRecord } from '@/lib/types'
 import { useQuarterParam, withQuarter } from '@/lib/use-quarter-param'
@@ -63,7 +63,8 @@ export default function AttendanceResults() {
   const [loading, setLoading] = useState(true)
   const [showQR, setShowQR] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [wordOfDay, setWordOfDay] = useState('')
+  const [selectedWord, setSelectedWord] = useState<string | null>(null)
+  const [permSearch, setPermSearch] = useState('')
   const [locationMode, setLocationMode] = useState<'off' | 'optional' | 'required'>('optional')
   const [savingMode, setSavingMode] = useState(false)
 
@@ -129,20 +130,30 @@ export default function AttendanceResults() {
     fetchRecords()
   }
 
-  // ── Export all ───────────────────────────────────────────────────────────────
+  // ── Derived state ────────────────────────────────────────────────────────────
 
-  const handleExport = async () => {
-    const XLSX = await import('xlsx')
-    const wb = XLSX.utils.book_new()
-    const byCode: Record<string, AttendanceRecord[]> = {}
+  const codeWordOptions = useMemo(() => {
+    const earliest: Record<string, number> = {}
     for (const r of records) {
-      ;(byCode[r.code_word] ??= []).push(r)
+      const t = new Date(r.submitted_at).getTime()
+      if (!(r.code_word in earliest) || t < earliest[r.code_word]) earliest[r.code_word] = t
     }
+    return Object.entries(earliest)
+      .sort((a, b) => a[1] - b[1])
+      .map(([word, ts]) => ({
+        word,
+        label: `${word} — ${new Date(ts).toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric' })}`,
+      }))
+  }, [records])
+
+  // ── Export ───────────────────────────────────────────────────────────────────
+
+  function buildSheet(rows: AttendanceRecord[]) {
+    const byCode: Record<string, AttendanceRecord[]> = {}
+    for (const r of rows) (byCode[r.code_word] ??= []).push(r)
     const statsCache: Record<string, ReturnType<typeof groupLocationStats>> = {}
-    for (const [word, rows] of Object.entries(byCode)) {
-      statsCache[word] = groupLocationStats(rows)
-    }
-    const sheet = records.map((r) => {
+    for (const [word, group] of Object.entries(byCode)) statsCache[word] = groupLocationStats(group)
+    return rows.map((r) => {
       const { meanLat, meanLon, trimLat, trimLon } = statsCache[r.code_word]
       const distMean =
         meanLat != null && meanLon != null && r.latitude != null && r.longitude != null
@@ -161,43 +172,21 @@ export default function AttendanceResults() {
         'Dist from IQR mean (m)': distTrim != null ? distTrim.toFixed(1) : '',
       }
     })
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet), 'Attendance')
+  }
+
+  const handleExport = async () => {
+    const XLSX = await import('xlsx')
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(buildSheet(records)), 'Attendance')
     XLSX.writeFile(wb, 'attendance.xlsx')
   }
 
-  // ── Word-of-day report ───────────────────────────────────────────────────────
-
-  const handleWordOfDayReport = async () => {
-    const word = wordOfDay.trim()
-    if (!word) return
+  const handleWordOfDayReport = async (word: string) => {
     const rows = records.filter((r) => r.code_word.toLowerCase() === word.toLowerCase())
-    if (rows.length === 0) {
-      alert(`No submissions found for code word "${word}".`)
-      return
-    }
+    if (rows.length === 0) { alert(`No submissions found for code word "${word}".`); return }
     const XLSX = await import('xlsx')
     const wb = XLSX.utils.book_new()
-    const stats = groupLocationStats(rows)
-    const { meanLat, meanLon, trimLat, trimLon } = stats
-    const sheet = rows.map((r) => {
-      const distMean =
-        meanLat != null && meanLon != null && r.latitude != null && r.longitude != null
-          ? haversine(r.latitude, r.longitude, meanLat, meanLon) : null
-      const distTrim =
-        trimLat != null && trimLon != null && r.latitude != null && r.longitude != null
-          ? haversine(r.latitude, r.longitude, trimLat, trimLon) : null
-      return {
-        'Student ID': r.student_id,
-        'Code Word': r.code_word,
-        'Timestamp': new Date(r.submitted_at).toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }),
-        'Latitude': r.latitude ?? '',
-        'Longitude': r.longitude ?? '',
-        'Accuracy (m)': r.accuracy != null ? Number(r.accuracy).toFixed(1) : '',
-        'Dist from mean (m)': distMean != null ? distMean.toFixed(1) : '',
-        'Dist from IQR mean (m)': distTrim != null ? distTrim.toFixed(1) : '',
-      }
-    })
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet), 'Attendance')
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(buildSheet(rows)), 'Attendance')
     XLSX.writeFile(wb, `attendance-${word}.xlsx`)
   }
 
@@ -207,67 +196,105 @@ export default function AttendanceResults() {
     (a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime()
   )
 
+  const filtered = sorted.filter((r) => {
+    const wordMatch = !selectedWord || r.code_word.toLowerCase() === selectedWord.toLowerCase()
+    const permMatch = !permSearch.trim() || r.student_id.toLowerCase().includes(permSearch.trim().toLowerCase())
+    return wordMatch && permMatch
+  })
+
   return (
     <>
       {showQR && <QRModal onClose={() => setShowQR(false)} />}
 
       {/* Controls card */}
-      <div className="flex flex-wrap items-center gap-4 mb-6 p-4 rounded-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-        {/* Word of day */}
-        <span className="text-xs font-medium" style={{ color: 'var(--navy)', whiteSpace: 'nowrap' }}>Word of the day</span>
-        <input
-          type="text"
-          className="rounded-lg px-3 py-2 text-sm"
-          style={{ border: '1px solid var(--border)', width: '200px' }}
-          placeholder="Enter code word…"
-          value={wordOfDay}
-          onChange={(e) => setWordOfDay(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') handleWordOfDayReport() }}
-        />
-        <button
-          onClick={handleWordOfDayReport}
-          disabled={!wordOfDay.trim()}
-          className="btn-gold rounded-lg px-4 py-2 text-sm"
-        >
-          Generate Report
-        </button>
-
-        {/* Divider */}
-        <div style={{ width: '1px', height: '28px', background: 'var(--border)' }} />
-
-        {/* Location mode segmented control */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium" style={{ color: 'var(--navy)', whiteSpace: 'nowrap' }}>Location</span>
-          <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)', opacity: savingMode ? 0.6 : 1 }}>
-            {(['off', 'optional', 'required'] as const).map((mode) => {
-              const labels = { off: 'Off', optional: 'Optional', required: 'Required' }
-              const active = locationMode === mode
-              return (
-                <button
-                  key={mode}
-                  onClick={() => setMode(mode)}
-                  disabled={savingMode}
-                  className="text-xs px-3 py-1.5 transition-colors"
-                  style={{
-                    background: active ? 'var(--navy)' : 'transparent',
-                    color: active ? '#fff' : 'var(--text-muted)',
-                    borderRight: mode !== 'required' ? '1px solid var(--border)' : 'none',
-                    fontWeight: active ? 600 : 400,
-                    cursor: savingMode ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  {labels[mode]}
-                </button>
-              )
-            })}
+      <div className="mb-6 p-4 rounded-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        {/* Row 1: word pills + location mode */}
+        <div className="flex flex-wrap items-center gap-4">
+          {/* Word of the day dropdown */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium shrink-0" style={{ color: 'var(--navy)' }}>Word of the day</span>
+            <select
+              value={selectedWord ?? ''}
+              onChange={(e) => setSelectedWord(e.target.value || null)}
+              className="rounded-lg px-3 py-1.5 text-sm"
+              style={{ border: '1px solid var(--border)', minWidth: '220px' }}
+            >
+              <option value="">All dates</option>
+              {codeWordOptions.map(({ word, label }) => (
+                <option key={word} value={word}>{label}</option>
+              ))}
+            </select>
+            {selectedWord && (
+              <button
+                onClick={() => handleWordOfDayReport(selectedWord)}
+                className="btn-gold rounded-lg px-3 py-1 text-xs"
+              >
+                ⬇ Export
+              </button>
+            )}
           </div>
+
+          {/* Divider */}
+          <div className="shrink-0" style={{ width: '1px', height: '28px', background: 'var(--border)' }} />
+
+          {/* Location mode segmented control */}
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs font-medium" style={{ color: 'var(--navy)', whiteSpace: 'nowrap' }}>Location</span>
+            <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)', opacity: savingMode ? 0.6 : 1 }}>
+              {(['off', 'optional', 'required'] as const).map((mode) => {
+                const labels = { off: 'Off', optional: 'Optional', required: 'Required' }
+                const active = locationMode === mode
+                return (
+                  <button
+                    key={mode}
+                    onClick={() => setMode(mode)}
+                    disabled={savingMode}
+                    className="text-xs px-3 py-1.5 transition-colors"
+                    style={{
+                      background: active ? 'var(--navy)' : 'transparent',
+                      color: active ? '#fff' : 'var(--text-muted)',
+                      borderRight: mode !== 'required' ? '1px solid var(--border)' : 'none',
+                      fontWeight: active ? 600 : 400,
+                      cursor: savingMode ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {labels[mode]}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: PERM search */}
+        <div className="flex items-center gap-2 mt-3">
+          <span className="text-xs font-medium shrink-0" style={{ color: 'var(--navy)' }}>Search PERM</span>
+          <input
+            type="text"
+            className="rounded-lg px-3 py-1.5 text-sm"
+            style={{ border: '1px solid var(--border)', width: '200px' }}
+            placeholder="Filter by PERM number…"
+            value={permSearch}
+            onChange={(e) => setPermSearch(e.target.value)}
+          />
+          {permSearch && (
+            <button
+              onClick={() => setPermSearch('')}
+              className="text-xs"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          {records.length} submission{records.length !== 1 ? 's' : ''}
+          {filtered.length}{filtered.length !== records.length ? ` of ${records.length}` : ''} submission{records.length !== 1 ? 's' : ''}
+          {selectedWord ? ` · word: ${selectedWord}` : ''}
+          {permSearch.trim() ? ` · perm: ${permSearch.trim()}` : ''}
         </span>
         <div className="flex gap-2" style={{ marginLeft: 'auto' }}>
           <button onClick={handleExport} disabled={records.length === 0}
@@ -293,7 +320,13 @@ export default function AttendanceResults() {
         </div>
       )}
 
-      {!loading && records.length > 0 && (
+      {!loading && records.length > 0 && filtered.length === 0 && (
+        <div className="rounded-xl p-8 text-center" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No records match the current filter.</p>
+        </div>
+      )}
+
+      {!loading && filtered.length > 0 && (
         <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
             <thead>
@@ -306,8 +339,8 @@ export default function AttendanceResults() {
               </tr>
             </thead>
             <tbody>
-              {sorted.map((r, i) => (
-                <tr key={r.id} style={{ borderBottom: i < sorted.length - 1 ? '1px solid var(--border)' : 'none', background: i % 2 === 0 ? 'white' : 'var(--surface)' }}>
+              {filtered.map((r, i) => (
+                <tr key={r.id} style={{ borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none', background: i % 2 === 0 ? 'white' : 'var(--surface)' }}>
                   <td style={td}>{r.student_id}</td>
                   <td style={{ ...td, color: 'var(--text-muted)' }}>
                     {new Date(r.submitted_at).toLocaleString('en-US', {
