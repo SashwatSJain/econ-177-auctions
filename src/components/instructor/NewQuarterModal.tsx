@@ -16,7 +16,7 @@ export default function NewQuarterModal({
   onCreated,
 }: {
   onClose: () => void
-  onCreated: (name: string) => void
+  onCreated: () => void
 }) {
   const [name, setName] = useState('')
   const [days, setDays] = useState<number[]>([])
@@ -46,7 +46,7 @@ export default function NewQuarterModal({
         const body = await res.json().catch(() => ({}))
         throw new Error(body?.error ?? 'Failed to create quarter')
       }
-      onCreated(name.trim())
+      onCreated()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {

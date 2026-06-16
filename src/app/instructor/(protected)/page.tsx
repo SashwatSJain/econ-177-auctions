@@ -179,6 +179,18 @@ export default function InstructorOverview() {
             </select>
           )}
 
+          {/* Export all raw data for the viewed quarter */}
+          {viewingQuarter && (
+            <a
+              href={`/api/admin/quarter-export${viewingQuarter.is_active ? '' : `?quarter=${viewingQuarter.id}`}`}
+              download
+              className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
+              style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'none' }}
+            >
+              Export all data ↓
+            </a>
+          )}
+
           {/* New Quarter button — only in experiments tab, not in archive mode */}
           {tab === 'experiments' && !isArchiveView && (
             <button

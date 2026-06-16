@@ -94,21 +94,21 @@ export default function ExportPage() {
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label
-              htmlFor="netid"
+              htmlFor="perm"
               className="text-xs tracking-widest uppercase"
               style={{ color: 'var(--text-muted)' }}
             >
               Perm Number
             </label>
             <input
-              id="netid"
+              id="perm"
               type="text"
               value={netid}
               onChange={e => {
                 setNetid(e.target.value)
                 setStatus({ kind: 'idle', datasetKey: null, message: '' })
               }}
-              placeholder="e.g. 1234567"
+              placeholder="7-character Perm (e.g. 1234567)"
               autoComplete="off"
               spellCheck={false}
               className="rounded-md px-3 py-2 text-sm outline-none focus:ring-2"

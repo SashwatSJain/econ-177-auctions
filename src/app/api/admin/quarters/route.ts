@@ -44,7 +44,15 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminSupabaseClient()
 
-  // Deactivate the current active quarter
+  // Capture the current active quarter so we can restore it if the insert fails
+  const { data: current } = await admin
+    .from('quarters')
+    .select('id')
+    .eq('is_active', true)
+    .single()
+
+  // Deactivate the current active quarter (unique index prevents two active rows,
+  // so we must deactivate before inserting the new one)
   await admin.from('quarters').update({ is_active: false }).eq('is_active', true)
 
   // Create the new active quarter
@@ -54,6 +62,12 @@ export async function POST(req: NextRequest) {
     .select('id, name, is_active, class_schedule, created_at')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    // Restore the previous active quarter to avoid leaving the system with no active quarter
+    if (current?.id) {
+      await admin.from('quarters').update({ is_active: true }).eq('id', current.id)
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
   return NextResponse.json(data, { status: 201 })
 }

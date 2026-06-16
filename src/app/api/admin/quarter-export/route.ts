@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
   }
 
   const [
+    { data: quarterRow },
     { data: bids },
     { data: riskAversion },
     { data: exp3 },
@@ -20,6 +21,7 @@ export async function GET(req: NextRequest) {
     { data: exp6 },
     { data: attendance },
   ] = await Promise.all([
+    admin.from('quarters').select('name').eq('id', quarterId).single(),
     admin.from('bids').select('*').eq('quarter_id', quarterId).order('created_at', { ascending: true }),
     admin.from('risk_aversion_responses').select('*').eq('quarter_id', quarterId).order('created_at', { ascending: true }),
     admin.from('experiment3_rounds').select('*').eq('quarter_id', quarterId).order('global_round', { ascending: true }),
@@ -48,12 +50,15 @@ export async function GET(req: NextRequest) {
 
   const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
   const date = new Date().toISOString().slice(0, 10)
+  const rawName = quarterRow?.name ?? ''
+  const safeName = rawName.replace(/[^a-zA-Z0-9 _-]/g, '').replace(/\s+/g, '-').toLowerCase()
+  const filename = safeName ? `econ177-${safeName}-${date}.xlsx` : `econ177-${date}.xlsx`
 
   return new NextResponse(buf, {
     status: 200,
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': `attachment; filename="econ177-${date}.xlsx"`,
+      'Content-Disposition': `attachment; filename="${filename}"`,
     },
   })
 }

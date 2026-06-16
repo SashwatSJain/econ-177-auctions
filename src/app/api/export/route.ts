@@ -3,6 +3,7 @@ import { getAuctionConfig } from '@/lib/auction-config'
 import { getExportDataset } from '@/lib/export-datasets'
 import { getExperiment3Treatment } from '@/lib/experiment3-config'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
+import { getActiveQuarterId } from '@/lib/get-quarter-id'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -20,6 +21,11 @@ export async function GET(req: NextRequest) {
 
   const supabase = createAdminSupabaseClient()
 
+  const quarterId = await getActiveQuarterId(supabase)
+  if (!quarterId) {
+    return NextResponse.json({ error: 'No active quarter' }, { status: 503 })
+  }
+
   let csvPayload: { csv: string; filename: string }
 
   if (dataset.key === 'auctions') {
@@ -27,6 +33,7 @@ export async function GET(req: NextRequest) {
       .from('bids')
       .select('*')
       .eq('student_id', netid)
+      .eq('quarter_id', quarterId)
       .order('created_at', { ascending: true })
 
     if (bidError) {
@@ -68,6 +75,7 @@ export async function GET(req: NextRequest) {
       .from('risk_aversion_responses')
       .select('*')
       .eq('student_id', netid)
+      .eq('quarter_id', quarterId)
       .order('created_at', { ascending: true })
 
     if (responseError) {
@@ -118,31 +126,40 @@ export async function GET(req: NextRequest) {
   } else if (dataset.key === 'exp4-group') {
     const admin = createAdminSupabaseClient()
 
-    // Fetch student's own row first
+    // Fetch student's own row in the current quarter
     const { data: own, error: ownError } = await supabase
       .from('experiment4_responses')
       .select('*')
       .eq('student_id', netid)
+      .eq('quarter_id', quarterId)
       .maybeSingle()
 
     if (ownError) return NextResponse.json({ error: ownError.message }, { status: 500 })
     if (!own) return NextResponse.json({ empty: true }, { status: 404 })
 
-    // Check for existing sample assignment
+    // Check for existing sample assignment and verify it belongs to the current quarter.
+    // Stale assignments from a prior quarter reference rows with a different quarter_id —
+    // detect and discard them so we regenerate from the current pool.
     const { data: existingSample } = await admin
       .from('experiment4_samples')
-      .select('ref_id')
+      .select('ref_id, experiment4_responses!inner(quarter_id)')
       .eq('student_id', netid)
+
+    const currentSample = (existingSample ?? []).filter(
+      (s: { ref_id: string; experiment4_responses: { quarter_id: string }[] }) =>
+        s.experiment4_responses[0]?.quarter_id === quarterId
+    )
 
     let sampleRefIds: string[]
 
-    if (existingSample && existingSample.length > 0) {
-      sampleRefIds = existingSample.map((s: { ref_id: string }) => s.ref_id)
+    if (currentSample.length > 0) {
+      sampleRefIds = currentSample.map((s: { ref_id: string }) => s.ref_id)
     } else {
-      // Lazy assignment: pick 9 random other students' rows
+      // Lazy assignment: pick 9 random other students' rows from the current quarter
       const { data: pool } = await admin
         .from('experiment4_responses')
         .select('id')
+        .eq('quarter_id', quarterId)
         .neq('student_id', netid)
 
       const shuffled = (pool ?? []).sort(() => Math.random() - 0.5).slice(0, 9)
@@ -183,6 +200,7 @@ export async function GET(req: NextRequest) {
       .from('experiment3_rounds')
       .select('*')
       .eq('student_id', netid)
+      .eq('quarter_id', quarterId)
       .order('global_round', { ascending: true })
 
     if (experiment3Error) {
