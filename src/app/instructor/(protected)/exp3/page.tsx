@@ -11,7 +11,8 @@ export default function Exp3Page() {
         <BackToOverview />
         <h2 className="text-lg font-semibold" style={{ color: 'var(--navy)' }}>Experiment 3: Seller Auction</h2>
         <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-          Seller-role reserve-price auction — 4 treatments × 20 rounds, 2 or 5 bidders
+          Seller-role reserve-price auction — 4 treatments × 20 rounds, 2 or 5 bidders.
+          Select a treatment to view per-round charts. Use "Compare" to overlay the paired treatment side by side.
         </p>
       </div>
       <ClassTimeBanner exp={3} />

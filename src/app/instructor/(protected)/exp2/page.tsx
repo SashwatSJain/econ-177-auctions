@@ -11,7 +11,8 @@ export default function Exp2Page() {
         <BackToOverview />
         <h2 className="text-lg font-semibold" style={{ color: 'var(--navy)' }}>Experiment 2: Risk Aversion</h2>
         <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-          CRRA risk-aversion elicitation — 9 indifference probabilities per student
+          CRRA risk-aversion elicitation — 9 indifference probabilities per student.
+          Responses appear automatically as students submit. The Class α stat updates live.
         </p>
       </div>
       <ClassTimeBanner exp={2} />

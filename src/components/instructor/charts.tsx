@@ -1,13 +1,17 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import InfoTooltip from './InfoTooltip'
 
 // ── Shared stat display ──────────────────────────────────────────────────────
 
-export function Stat({ label, value }: { label: string; value: number | string }) {
+export function Stat({ label, value, description }: { label: string; value: number | string; description?: string }) {
   return (
     <div>
-      <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>{label}</p>
+      <p className="text-xs mb-1 flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
+        {label}
+        {description && <InfoTooltip text={description} />}
+      </p>
       <p className="serif text-2xl" style={{ color: 'var(--navy)' }}>{value}</p>
     </div>
   )

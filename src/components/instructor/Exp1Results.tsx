@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Stat, Exp1BidChart } from './charts'
+import InfoTooltip from './InfoTooltip'
 import { AUCTION_CONFIGS, TOTAL_ROUNDS } from '@/lib/auction-config'
 import { useQuarterParam, withQuarter } from '@/lib/use-quarter-param'
 import type { Bid } from '@/lib/types'
@@ -133,8 +134,12 @@ export default function Exp1Results() {
     <div>
       {/* Auction type selector */}
       <div className="mb-6">
-        <p className="text-xs tracking-widest uppercase mb-3" style={{ color: 'var(--text-muted)' }}>
+        <p className="text-xs tracking-widest uppercase mb-1 flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
           Treatment
+          <InfoTooltip text={"Each treatment is a different auction format. Select one to see its bids, chart, and Nash equilibrium.\n\nAll 8 treatments run the same 10 rounds independently — switching here only changes which treatment you're viewing."} />
+        </p>
+        <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+          Select an auction format to view its bids and Nash equilibrium.
         </p>
         <div className="flex flex-wrap gap-2">
           {AUCTION_CONFIGS.map((a) => (
@@ -157,9 +162,9 @@ export default function Exp1Results() {
       {/* Stats bar */}
       <div className="grid grid-cols-3 gap-4 rounded-xl p-4 mb-6"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-        <Stat label="Total Bids" value={bids.length} />
-        <Stat label="Unique Students" value={new Set(bids.map((b) => b.student_id)).size} />
-        <Stat label="Rounds Active" value={roundsWithData.length} />
+        <Stat label="Total Bids" value={bids.length} description="Total individual bids submitted for this treatment across all rounds." />
+        <Stat label="Unique Students" value={new Set(bids.map((b) => b.student_id)).size} description="Number of distinct PERM numbers that have placed at least one bid in this treatment." />
+        <Stat label="Rounds Active" value={roundsWithData.length} description="Number of rounds that have received at least one bid so far. Each treatment runs 10 rounds." />
       </div>
 
       {/* Nash equilibrium + revenue note */}
@@ -216,10 +221,12 @@ export default function Exp1Results() {
           ))}
         </div>
         <div className="flex gap-2">
-          <button onClick={fetchBids} className="btn-ghost text-xs px-3 py-1.5 rounded" disabled={loading}>
+          <button onClick={fetchBids} className="btn-ghost text-xs px-3 py-1.5 rounded" disabled={loading}
+            title="Reload the latest bids from the database">
             {loading ? 'Loading…' : '↻ Refresh'}
           </button>
-          <button onClick={handleExport} className="btn-gold text-xs px-3 py-1.5 rounded" disabled={bids.length === 0}>
+          <button onClick={handleExport} className="btn-gold text-xs px-3 py-1.5 rounded" disabled={bids.length === 0}
+            title="Download all bids for this treatment as a spreadsheet (.xlsx) with one sheet per round">
             ⬇ Excel
           </button>
         </div>

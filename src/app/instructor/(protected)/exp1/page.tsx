@@ -11,7 +11,8 @@ export default function Exp1Page() {
         <BackToOverview />
         <h2 className="text-lg font-semibold" style={{ color: 'var(--navy)' }}>Experiment 1: Auctions</h2>
         <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-          Sealed-bid auction treatments — first/second price × 2/5 bidders × variants
+          Sealed-bid auction treatments — first/second price × 2/5 bidders × variants.
+          Select a treatment to view its bids. The scatter chart overlays the Nash equilibrium prediction in real time.
         </p>
       </div>
       <ClassTimeBanner exp={1} />

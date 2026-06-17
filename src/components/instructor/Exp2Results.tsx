@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Stat } from './charts'
+import InfoTooltip from './InfoTooltip'
 import type { RiskAversionResponse } from '@/lib/types'
 import { useQuarterParam, withQuarter } from '@/lib/use-quarter-param'
 
@@ -84,10 +85,13 @@ export default function Exp2Results() {
     <div>
       <div className="grid grid-cols-3 gap-4 rounded-xl p-4 mb-6"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-        <Stat label="Submissions" value={rows.length} />
-        <Stat label="Unique Students" value={new Set(rows.map((r) => r.student_id)).size} />
+        <Stat label="Submissions" value={rows.length} description="Total number of completed risk-aversion questionnaires received from students." />
+        <Stat label="Unique Students" value={new Set(rows.map((r) => r.student_id)).size} description="Number of distinct PERM numbers that have submitted responses." />
         <div>
-          <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Class α (CRRA)</p>
+          <p className="text-xs mb-1 flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
+            Class α (CRRA)
+            <InfoTooltip text={"Aggregate CRRA coefficient estimated from the full class. Pooled log-regression across all students' indifference probabilities. α < 1 = risk-averse, α > 1 = risk-seeking, α ≈ 1 = risk-neutral."} />
+          </p>
           <p className="serif text-2xl" style={{ color: 'var(--navy)' }}>
             {classAlpha !== null ? classAlpha.toFixed(3) : '—'}
           </p>

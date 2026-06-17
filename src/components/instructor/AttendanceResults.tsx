@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import type { AttendanceRecord } from '@/lib/types'
 import { useQuarterParam, withQuarter } from '@/lib/use-quarter-param'
+import InfoTooltip from './InfoTooltip'
 
 const ATTENDANCE_URL = 'https://econ-177.vercel.app/attendance'
 
@@ -212,7 +213,10 @@ export default function AttendanceResults() {
         <div className="flex flex-wrap items-center gap-4">
           {/* Word of the day dropdown */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium shrink-0" style={{ color: 'var(--navy)' }}>Word of the day</span>
+            <span className="text-xs font-medium shrink-0 flex items-center gap-1" style={{ color: 'var(--navy)' }}>
+              Word of the day
+              <InfoTooltip text={"A secret code word you announce in class. Students enter it when checking in, which proves they're physically present.\n\nFilter by word to see attendance for a specific session. Each word in the list shows the date of first use."} />
+            </span>
             <select
               value={selectedWord ?? ''}
               onChange={(e) => setSelectedWord(e.target.value || null)}
@@ -239,7 +243,10 @@ export default function AttendanceResults() {
 
           {/* Location mode segmented control */}
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs font-medium" style={{ color: 'var(--navy)', whiteSpace: 'nowrap' }}>Location</span>
+            <span className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--navy)', whiteSpace: 'nowrap' }}>
+              Location
+              <InfoTooltip text={"Controls whether students share GPS when checking in.\n\nOff — no location collected.\nOptional — students are asked but can skip.\nRequired — students must share location to submit (those who deny GPS cannot check in)."} />
+            </span>
             <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)', opacity: savingMode ? 0.6 : 1 }}>
               {(['off', 'optional', 'required'] as const).map((mode) => {
                 const labels = { off: 'Off', optional: 'Optional', required: 'Required' }
@@ -268,7 +275,10 @@ export default function AttendanceResults() {
 
         {/* Row 2: PERM search */}
         <div className="flex items-center gap-2 mt-3">
-          <span className="text-xs font-medium shrink-0" style={{ color: 'var(--navy)' }}>Search PERM</span>
+          <span className="text-xs font-medium shrink-0 flex items-center gap-1" style={{ color: 'var(--navy)' }}>
+            Search PERM
+            <InfoTooltip text={"Filter the table by a student's PERM number (UCSB student ID). Useful for looking up a specific student's check-in history."} />
+          </span>
           <input
             type="text"
             className="rounded-lg px-3 py-1.5 text-sm"
@@ -298,17 +308,24 @@ export default function AttendanceResults() {
         </span>
         <div className="flex gap-2" style={{ marginLeft: 'auto' }}>
           <button onClick={handleExport} disabled={records.length === 0}
-            className="btn-ghost text-xs px-3 py-1.5 rounded">
+            className="btn-ghost text-xs px-3 py-1.5 rounded"
+            title="Download all attendance records as a spreadsheet (.xlsx)">
             ⬇ Export All
           </button>
-          <button onClick={deleteAll} disabled={deleting || records.length === 0}
-            className="text-xs px-3 py-1.5 rounded transition-all"
-            style={{ background: 'transparent', border: '1px solid #fca5a5', color: '#dc2626' }}>
-            {deleting ? 'Deleting…' : 'Delete All'}
-          </button>
-          <button className="btn-gold rounded-lg px-4 py-2 text-sm" onClick={() => setShowQR(true)}>
-            Show QR Code
-          </button>
+          <span className="flex items-center gap-1">
+            <button onClick={deleteAll} disabled={deleting || records.length === 0}
+              className="text-xs px-3 py-1.5 rounded transition-all"
+              style={{ background: 'transparent', border: '1px solid #fca5a5', color: '#dc2626' }}>
+              {deleting ? 'Deleting…' : 'Delete All'}
+            </button>
+            <InfoTooltip text={"Permanently removes every attendance record for this quarter. This cannot be undone.\n\nUse this only to clear test data before the real class session."} />
+          </span>
+          <span className="flex items-center gap-1">
+            <button className="btn-gold rounded-lg px-4 py-2 text-sm" onClick={() => setShowQR(true)}>
+              Show QR Code
+            </button>
+            <InfoTooltip text={"Displays a full-screen QR code that students scan with their phones to record attendance.\n\nProject this on screen at the start of class. Each scan submits the student's PERM number, the code word they enter, and their GPS location (if enabled)."} />
+          </span>
         </div>
       </div>
 

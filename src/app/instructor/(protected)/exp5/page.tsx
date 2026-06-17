@@ -11,7 +11,8 @@ export default function Exp5Page() {
         <BackToOverview />
         <h2 className="text-lg font-semibold" style={{ color: 'var(--navy)' }}>Experiment 5: Oil Well</h2>
         <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-          Common-value auction — paired bidders each observe half the well value
+          Common-value auction — paired bidders each observe half the well value.
+          Students submit a bid first, then click "Pair All" to match them. Students see their outcome only after both members of a pair have submitted.
         </p>
       </div>
       <ClassTimeBanner exp={5} />

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Stat, Exp3LineChart, Exp3DualLineChart, ChartProps } from './charts'
+import InfoTooltip from './InfoTooltip'
 import { EXPERIMENT3_TREATMENTS } from '@/lib/experiment3-config'
 import type { Experiment3Round } from '@/lib/types'
 import { useQuarterParam, withQuarter } from '@/lib/use-quarter-param'
@@ -301,7 +302,11 @@ export default function Exp3Results() {
     <div>
       {/* Treatment selector */}
       <div className="mb-6">
-        <p className="text-xs tracking-widest uppercase mb-3" style={{ color: 'var(--text-muted)' }}>Treatment</p>
+        <p className="text-xs tracking-widest uppercase mb-1 flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
+          Treatment
+          <InfoTooltip text={"Select a treatment to view its charts and data table. Treatments 1 & 2 are paired (same seller value, different bidder counts) as are 3 & 4.\n\nUse the 'Compare' button in the charts section to overlay the paired treatment side by side."} />
+        </p>
+        <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>Select a seller-auction format to view per-round averages.</p>
         <div className="flex flex-wrap gap-2">
           {EXPERIMENT3_TREATMENTS.map((treatment) => (
             <button key={treatment.key}
@@ -322,10 +327,10 @@ export default function Exp3Results() {
       {/* Stats bar */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 rounded-xl p-4 mb-6"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-        <Stat label="Total Rows" value={allRows.length} />
-        <Stat label="Unique Students" value={new Set(allRows.map((r) => r.student_id)).size} />
-        <Stat label="Sale Rate" value={`${(saleRate * 100).toFixed(1)}%`} />
-        <Stat label="Avg Profit" value={`$${averageProfit.toFixed(2)}`} />
+        <Stat label="Total Rows" value={allRows.length} description="Total number of rounds submitted by all students for this treatment." />
+        <Stat label="Unique Students" value={new Set(allRows.map((r) => r.student_id)).size} description="Number of distinct PERM numbers that have played at least one round of this treatment." />
+        <Stat label="Sale Rate" value={`${(saleRate * 100).toFixed(1)}%`} description="Percentage of rounds where the item sold (i.e., at least one bidder exceeded the seller's reserve price)." />
+        <Stat label="Avg Profit" value={`$${averageProfit.toFixed(2)}`} description="Average seller profit per round across all students. Profit = sale price minus seller cost when sold; 0 if no sale." />
         {topEarner && (
           <div>
             <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Most Profit</p>

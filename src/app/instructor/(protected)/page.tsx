@@ -5,18 +5,20 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import NewQuarterModal from '@/components/instructor/NewQuarterModal'
 import ClassScheduleSettings from '@/components/instructor/ClassScheduleSettings'
+import InfoTooltip from '@/components/instructor/InfoTooltip'
 import type { Quarter } from '@/app/api/admin/quarters/route'
 
 const ATTENDANCE = {
   href: '/instructor/attendance',
   title: 'Attendance',
-  description: 'Student sign-ins with PERM number, code word, timestamp, and GPS location. Grouped by class day.',
+  description: 'Student sign-ins with PERM number and code word. Display the QR code in class — students scan it to check in.',
   detail: 'All sessions',
 }
 
 const PARTICIPATION = {
   href: '/instructor/participation',
   title: 'Participation',
+  description: 'A grid showing every student versus every experiment. See at a glance who has submitted and whether submissions were on time.',
   detail: 'All students × all experiments',
 }
 
@@ -46,7 +48,7 @@ const EXPERIMENTS = [
     num: 4,
     href: '/instructor/exp4',
     title: 'Penny Jar Experiment',
-    description: 'Common-value auction. Students estimate kernel count and bid against 1, 10, or 100 competitors.',
+    description: 'Common-value auction. Students estimate kernel count and bid in groups of 2, 10, or 100 bidders.',
     detail: '3 bid scenarios per student',
   },
   {
@@ -160,46 +162,55 @@ export default function InstructorOverview() {
         <div className="flex items-center gap-2">
           {/* Quarter selector */}
           {quarters.length > 0 && (
-            <select
-              value={viewingQuarter?.id ?? ''}
-              onChange={(e) => handleQuarterChange(e.target.value)}
-              className="text-xs px-2 py-1.5 rounded-lg"
-              style={{
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                color: 'var(--text)',
-                cursor: 'pointer',
-              }}
-            >
-              {quarters.map((q) => (
-                <option key={q.id} value={q.id}>
-                  {q.name}{q.is_active ? ' (current)' : ''}
-                </option>
-              ))}
-            </select>
+            <span className="flex items-center gap-1">
+              <select
+                value={viewingQuarter?.id ?? ''}
+                onChange={(e) => handleQuarterChange(e.target.value)}
+                className="text-xs px-2 py-1.5 rounded-lg"
+                style={{
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text)',
+                  cursor: 'pointer',
+                }}
+              >
+                {quarters.map((q) => (
+                  <option key={q.id} value={q.id}>
+                    {q.name}{q.is_active ? ' (current)' : ''}
+                  </option>
+                ))}
+              </select>
+              <InfoTooltip text={"Switch between the current quarter and past archived quarters.\n\nArchived quarters are read-only — you can view data but not add or delete anything."} />
+            </span>
           )}
 
           {/* Export all raw data for the viewed quarter */}
           {viewingQuarter && (
-            <a
-              href={`/api/admin/quarter-export${viewingQuarter.is_active ? '' : `?quarter=${viewingQuarter.id}`}`}
-              download
-              className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
-              style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'none' }}
-            >
-              Export all data ↓
-            </a>
+            <span className="flex items-center gap-1">
+              <a
+                href={`/api/admin/quarter-export${viewingQuarter.is_active ? '' : `?quarter=${viewingQuarter.id}`}`}
+                download
+                className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
+                style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'none' }}
+              >
+                Export all data ↓
+              </a>
+              <InfoTooltip text={"Downloads a single .xlsx spreadsheet with raw data from every experiment for the selected quarter.\n\nUse this for a full backup or for analysis outside the app."} />
+            </span>
           )}
 
           {/* New Quarter button — only in experiments tab, not in archive mode */}
           {tab === 'experiments' && !isArchiveView && (
-            <button
-              onClick={() => setShowNewQuarter(true)}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
-              style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer' }}
-            >
-              New Quarter
-            </button>
+            <span className="flex items-center gap-1">
+              <button
+                onClick={() => setShowNewQuarter(true)}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
+                style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                New Quarter
+              </button>
+              <InfoTooltip text={"Archive the current quarter and start a fresh one.\n\nAll existing experiment data moves to the archive and remains viewable from the quarter dropdown. The new quarter starts completely empty."} />
+            </span>
           )}
         </div>
       </div>
@@ -220,6 +231,14 @@ export default function InstructorOverview() {
       {tab === 'experiments' && (
         <>
 
+      {/* Workflow intro */}
+      <div className="mb-6 p-4 rounded-xl text-xs" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)', lineHeight: 1.7 }}>
+        <span style={{ color: 'var(--navy)', fontWeight: 600 }}>How this works: </span>
+        Students visit the class website on their phones and submit experiment data in real time. Each card below opens a results page for that experiment. Use{' '}
+        <span style={{ color: 'var(--text)', fontWeight: 500 }}>Attendance</span> to take roll (display the QR code in class), and{' '}
+        <span style={{ color: 'var(--text)', fontWeight: 500 }}>Participation</span> to see at a glance which students completed which experiments.
+      </div>
+
       {/* Attendance + Participation cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         {[ATTENDANCE, PARTICIPATION].map((card) => (
@@ -239,6 +258,7 @@ export default function InstructorOverview() {
               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>View records →</span>
             </div>
             <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--navy)' }}>{card.title}</h3>
+            <p className="text-xs leading-relaxed mb-2" style={{ color: 'var(--text-muted)' }}>{card.description}</p>
             <p className="text-[10px] tracking-widest uppercase font-medium" style={{ color: 'rgba(0,54,96,0.45)' }}>{card.detail}</p>
           </Link>
         ))}

@@ -331,25 +331,27 @@ export default function Exp6Results() {
           {/* Stats bar */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 rounded-xl p-4 mb-6"
             style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-            <Stat label="Joined" value={rows.length} />
-            <Stat label="Bids Submitted" value={submitted.length} />
-            <Stat label="Grouped" value={groupedRows.length} />
-            <Stat label="Awaiting Group" value={ungroupedSubmitted.length} />
-            <Stat label="Complete Groups" value={completeGroups.length} />
-            <Stat label="Avg Bid" value={avgBid !== null ? `$${avgBid.toFixed(2)}` : '—'} />
-            <Stat label="Avg Profit" value={avgProfit !== null ? fmt(avgProfit) : '—'} />
+            <Stat label="Joined" value={rows.length} description="Students who have opened this experiment and are waiting to be grouped." />
+            <Stat label="Bids Submitted" value={submitted.length} description="Students who have entered and submitted a bid amount. They must submit before they can be grouped." />
+            <Stat label="Grouped" value={groupedRows.length} description="Students who have been assigned to a group. Groups are formed automatically when enough bidders submit." />
+            <Stat label="Awaiting Group" value={ungroupedSubmitted.length} description="Students who submitted a bid but don't have a complete group yet. Waiting for more students to submit." />
+            <Stat label="Complete Groups" value={completeGroups.length} description={`Groups where all ${tab} members have submitted. These groups have a determined winner and final results.`} />
+            <Stat label="Avg Bid" value={avgBid !== null ? `$${avgBid.toFixed(2)}` : '—'} description="Average bid amount across all students in complete groups for this group size." />
+            <Stat label="Avg Profit" value={avgProfit !== null ? fmt(avgProfit) : '—'} description="Average profit per student (winner earns $100 minus bid; all others lose their bid). Negative means net loss on average." />
           </div>
 
           {/* Actions */}
           <div className="flex flex-wrap gap-2 items-center justify-between mb-6">
             <div className="flex gap-2 flex-wrap items-center">
               <button onClick={handleGroupAll} className="btn-gold text-xs px-3 py-1.5 rounded"
-                disabled={grouping || ungroupedSubmitted.length < tab}>
+                disabled={grouping || ungroupedSubmitted.length < tab}
+                title={`Assign all waiting bidders into groups of ${tab}. The button is disabled until at least ${tab} students are waiting. Once grouped, students can see their group's results.`}>
                 {grouping ? 'Grouping…' : `Group All (${ungroupedSubmitted.length} waiting)`}
               </button>
               {actionMsg && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{actionMsg}</span>}
             </div>
-            <button onClick={fetchRows} className="btn-ghost text-xs px-3 py-1.5 rounded" disabled={loading}>
+            <button onClick={fetchRows} className="btn-ghost text-xs px-3 py-1.5 rounded" disabled={loading}
+              title="Reload the latest data from the database">
               {loading ? 'Loading…' : '↻ Refresh'}
             </button>
           </div>

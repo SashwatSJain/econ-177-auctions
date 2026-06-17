@@ -152,7 +152,7 @@ export default function Exp4Results() {
       '#': i + 1,
       'Student ID': r.student_id,
       'Estimate (kernels)': Number(r.estimate),
-      'Bid — 1 Bidder ($)': Number(r.bid_2),
+      'Bid — 2 Bidders ($)': Number(r.bid_2),
       'Bid — 10 Bidders ($)': Number(r.bid_10),
       'Bid — 100 Bidders ($)': Number(r.bid_100),
       'Submitted': new Date(r.created_at).toLocaleString(),
@@ -165,11 +165,11 @@ export default function Exp4Results() {
     <div>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 rounded-xl p-4 mb-6"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-        <Stat label="Submissions" value={rows.length} />
-        <Stat label="Avg Estimate" value={fmt(avgEstimate)} />
-        <Stat label="Avg Bid · 1 Bidder" value={avgBid2 != null ? `$${fmt(avgBid2)}` : '—'} />
-        <Stat label="Avg Bid · 10 Bidders" value={avgBid10 != null ? `$${fmt(avgBid10)}` : '—'} />
-        <Stat label="Avg Bid · 100 Bidders" value={avgBid100 != null ? `$${fmt(avgBid100)}` : '—'} />
+        <Stat label="Submissions" value={rows.length} description="Total number of students who have submitted a bid for this experiment." />
+        <Stat label="Avg Estimate" value={fmt(avgEstimate)} description="Average of each student's estimate of how many kernels are in the jar. This is the student's 'signal' about the true value." />
+        <Stat label="Avg Bid · 2 Bidders" value={avgBid2 != null ? `$${fmt(avgBid2)}` : '—'} description="Average bid when there are 2 total bidders (student + 1 other). With only one competitor, bids tend to be higher." />
+        <Stat label="Avg Bid · 10 Bidders" value={avgBid10 != null ? `$${fmt(avgBid10)}` : '—'} description="Average bid with 10 total bidders. More competition drives bids down to avoid the winner's curse." />
+        <Stat label="Avg Bid · 100 Bidders" value={avgBid100 != null ? `$${fmt(avgBid100)}` : '—'} description="Average bid with 100 total bidders. The winner's curse is strongest here — rational bids should be well below the estimate." />
       </div>
 
 <div className="flex gap-2 justify-end mb-4">
@@ -193,7 +193,7 @@ export default function Exp4Results() {
           <table className="w-full text-sm" style={{ minWidth: '700px' }}>
             <thead>
               <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-                {['#', 'Student ID', 'Estimate', 'Bid · 1 Bidder', 'Bid · 10 Bidders', 'Bid · 100 Bidders', 'Submitted', 'Downloaded', ''].map((h) => (
+                {['#', 'Student ID', 'Estimate', 'Bid · 2 Bidders', 'Bid · 10 Bidders', 'Bid · 100 Bidders', 'Submitted', 'Downloaded', ''].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-xs tracking-wide font-medium" style={{ color: 'var(--text-muted)' }}>{h}</th>
                 ))}
               </tr>

@@ -11,7 +11,8 @@ export default function Exp4Page() {
         <BackToOverview />
         <h2 className="text-lg font-semibold" style={{ color: 'var(--navy)' }}>Experiment 4: Penny Jar Experiment</h2>
         <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-          Common-value auction — students estimate kernel count and bid against 1, 10, or 100 competitors
+          Common-value auction — students estimate kernel count and bid in groups of 2, 10, or 100 bidders.
+          Each student submits one estimate and three bids. The scatter chart shows how bid shading changes with competition.
         </p>
       </div>
       <ClassTimeBanner exp={4} />

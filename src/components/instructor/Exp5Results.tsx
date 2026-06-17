@@ -127,13 +127,13 @@ export default function Exp5Results() {
       {/* Stats bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 rounded-xl p-4 mb-6"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-        <Stat label="Joined" value={rows.length} />
-        <Stat label="Bids Submitted" value={submitted.length} />
-        <Stat label="Paired" value={pairedRows.length} />
-        <Stat label="Awaiting Pair" value={unpairedSubmitted.length} />
-        <Stat label="Pairs Resolved" value={completedPairs.length} />
-        <Stat label="Avg Bid" value={avgBid !== null ? fmtBid(avgBid, variant) : '—'} />
-        <Stat label="Avg Winner Profit" value={avgProfit !== null ? fmtBid(avgProfit, variant) : '—'} />
+        <Stat label="Joined" value={rows.length} description="Number of students who have opened the experiment and received a role (A or B) and a half-value." />
+        <Stat label="Bids Submitted" value={submitted.length} description="Students who have submitted a bid. A student must submit before they can be paired." />
+        <Stat label="Paired" value={pairedRows.length} description="Students who have been matched with an opponent. Pairing happens when you click 'Pair Students' below." />
+        <Stat label="Awaiting Pair" value={unpairedSubmitted.length} description="Students who submitted a bid but haven't been paired yet. Click 'Pair Students' to match them." />
+        <Stat label="Pairs Resolved" value={completedPairs.length} description="Matched pairs where both students have submitted a bid. These pairs have a determined winner." />
+        <Stat label="Avg Bid" value={avgBid !== null ? fmtBid(avgBid, variant) : '—'} description="Average bid across all completed pairs. Includes both Role A (half_value=0) and Role B (half_value=3 or continuous) students." />
+        <Stat label="Avg Winner Profit" value={avgProfit !== null ? fmtBid(avgProfit, variant) : '—'} description="Average profit of the winning bidder. Profit = total well value minus winning bid. Negative values indicate overbidding (winner's curse)." />
       </div>
 
       {/* CDF chart — continuous only */}
@@ -147,12 +147,14 @@ export default function Exp5Results() {
       <div className="flex flex-wrap gap-2 items-center justify-between mb-6">
         <div className="flex gap-2 flex-wrap items-center">
           <button onClick={handlePairAll} className="btn-gold text-xs px-3 py-1.5 rounded"
-            disabled={pairing || unpairedSubmitted.length === 0}>
+            disabled={pairing || unpairedSubmitted.length === 0}
+            title="Match all students who have submitted a bid into pairs. Each student is randomly paired with one opponent. Once paired, both students see each other's bid.">
             {pairing ? 'Pairing…' : `Pair All (${unpairedSubmitted.length} waiting)`}
           </button>
           {actionMsg && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{actionMsg}</span>}
         </div>
-        <button onClick={fetchRows} className="btn-ghost text-xs px-3 py-1.5 rounded" disabled={loading}>
+        <button onClick={fetchRows} className="btn-ghost text-xs px-3 py-1.5 rounded" disabled={loading}
+          title="Reload the latest data from the database">
           {loading ? 'Loading…' : '↻ Refresh'}
         </button>
       </div>
