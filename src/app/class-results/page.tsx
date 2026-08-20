@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import Link from 'next/link'
+import { useSearchParams, useRouter } from 'next/navigation'
 import {
   Exp1BidChart,
   Exp3LineChart,
@@ -13,6 +14,8 @@ import {
 } from '@/components/instructor/charts'
 import { AUCTION_CONFIGS } from '@/lib/auction-config'
 import { EXPERIMENT3_TREATMENTS } from '@/lib/experiment3-config'
+import { withQuarter } from '@/lib/use-quarter-param'
+import type { PublicQuarter } from '@/app/api/quarters/route'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -61,20 +64,21 @@ function getRegressionBids(auctionKey: string, bids: { pv: number; bid: number }
   return bids
 }
 
-function Exp1Charts() {
+function Exp1Charts({ quarter }: { quarter: string | null }) {
   const [selectedKey, setSelectedKey] = useState(AUCTION_CONFIGS[0].key)
   const [rows, setRows] = useState<Exp1Row[]>([])
   const [loading, setLoading] = useState(false)
   const cache = useRef<Record<string, Exp1Row[]>>({})
 
   useEffect(() => {
-    if (cache.current[selectedKey]) { setRows(cache.current[selectedKey]); return }
+    const cacheKey = `${quarter ?? 'active'}:${selectedKey}`
+    if (cache.current[cacheKey]) { setRows(cache.current[cacheKey]); return }
     setLoading(true)
-    fetch(`/api/class-results/exp1?auction_type=${encodeURIComponent(selectedKey)}`)
+    fetch(withQuarter(`/api/class-results/exp1?auction_type=${encodeURIComponent(selectedKey)}`, quarter))
       .then((r) => r.ok ? r.json() : [])
-      .then((data: Exp1Row[]) => { cache.current[selectedKey] = data; setRows(data) })
+      .then((data: Exp1Row[]) => { cache.current[cacheKey] = data; setRows(data) })
       .finally(() => setLoading(false))
-  }, [selectedKey])
+  }, [selectedKey, quarter])
 
   const config = AUCTION_CONFIGS.find((a) => a.key === selectedKey)!
   const bids = rows.map((r) => ({ pv: Number(r.private_value), bid: Number(r.amount) }))
@@ -140,7 +144,7 @@ function rowsToReserveData(rows: Exp3Row[]) {
   })
 }
 
-function Exp3Charts() {
+function Exp3Charts({ quarter }: { quarter: string | null }) {
   const [selectedKey, setSelectedKey] = useState(EXPERIMENT3_TREATMENTS[0].key)
   const [rows, setRows] = useState<Exp3Row[]>([])
   const [loading, setLoading] = useState(false)
@@ -150,24 +154,25 @@ function Exp3Charts() {
   const cache = useRef<Record<string, Exp3Row[]>>({})
 
   const fetchRows = useCallback(async (key: string): Promise<Exp3Row[]> => {
-    if (cache.current[key]) return cache.current[key]
-    const res = await fetch(`/api/class-results/exp3?treatment_key=${encodeURIComponent(key)}`)
+    const cacheKey = `${quarter ?? 'active'}:${key}`
+    if (cache.current[cacheKey]) return cache.current[cacheKey]
+    const res = await fetch(withQuarter(`/api/class-results/exp3?treatment_key=${encodeURIComponent(key)}`, quarter))
     if (!res.ok) return []
     const data: Exp3Row[] = await res.json()
-    cache.current[key] = data
+    cache.current[cacheKey] = data
     return data
-  }, [])
+  }, [quarter])
 
   useEffect(() => {
     setLoading(true)
     fetchRows(selectedKey).then(setRows).finally(() => setLoading(false))
   }, [selectedKey, fetchRows])
 
-  // Reset paired state when treatment changes
+  // Reset paired state when treatment or quarter changes
   useEffect(() => {
     setPairedReserveData(null)
     setShowCombined(false)
-  }, [selectedKey])
+  }, [selectedKey, quarter])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowCombined(false) }
@@ -316,7 +321,7 @@ const EXP4_TABS = [
   { key: 'bid_100' as const, label: '100 Bidders' },
 ]
 
-function Exp4Charts() {
+function Exp4Charts({ quarter }: { quarter: string | null }) {
   const [rows, setRows] = useState<Exp4Row[]>([])
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'bid_2' | 'bid_10' | 'bid_100'>('bid_2')
@@ -324,11 +329,11 @@ function Exp4Charts() {
 
   useEffect(() => {
     setLoading(true)
-    fetch('/api/experiment4')
+    fetch(withQuarter('/api/experiment4', quarter))
       .then((r) => r.ok ? r.json() : [])
       .then(setRows)
       .finally(() => setLoading(false))
-  }, [])
+  }, [quarter])
 
   if (loading) return <Loading />
   if (rows.length === 0) return <Empty />
@@ -362,14 +367,14 @@ function Exp4Charts() {
 
 // ── Exp 5 ────────────────────────────────────────────────────────────────────
 
-function Exp5Charts() {
+function Exp5Charts({ quarter }: { quarter: string | null }) {
   const [bids0, setBids0] = useState<number[]>([])
   const [bids3, setBids3] = useState<number[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     setLoading(true)
-    fetch('/api/beta/cv-auction?variant=integer')
+    fetch(withQuarter('/api/beta/cv-auction?variant=integer', quarter))
       .then((r) => r.ok ? r.json() : [])
       .then((rows: Exp5Row[]) => {
         const submitted = rows.filter((r) => r.bid !== null)
@@ -377,7 +382,7 @@ function Exp5Charts() {
         setBids3(submitted.filter((r) => Number(r.half_value) === 3).map((r) => Number(r.bid)))
       })
       .finally(() => setLoading(false))
-  }, [])
+  }, [quarter])
 
   if (loading) return <Loading />
   if (bids0.length === 0 && bids3.length === 0) return <Empty />
@@ -387,7 +392,7 @@ function Exp5Charts() {
 
 // ── Exp 6 ────────────────────────────────────────────────────────────────────
 
-function Exp6Charts() {
+function Exp6Charts({ quarter }: { quarter: string | null }) {
   const [bids2, setBids2] = useState<number[]>([])
   const [bids5, setBids5] = useState<number[]>([])
   const [bids10, setBids10] = useState<number[]>([])
@@ -396,15 +401,15 @@ function Exp6Charts() {
   useEffect(() => {
     setLoading(true)
     Promise.all([
-      fetch('/api/exp6?num_bidders=2').then((r) => r.ok ? r.json() as Promise<Exp6Row[]> : []),
-      fetch('/api/exp6?num_bidders=5').then((r) => r.ok ? r.json() as Promise<Exp6Row[]> : []),
-      fetch('/api/exp6?num_bidders=10').then((r) => r.ok ? r.json() as Promise<Exp6Row[]> : []),
+      fetch(withQuarter('/api/exp6?num_bidders=2', quarter)).then((r) => r.ok ? r.json() as Promise<Exp6Row[]> : []),
+      fetch(withQuarter('/api/exp6?num_bidders=5', quarter)).then((r) => r.ok ? r.json() as Promise<Exp6Row[]> : []),
+      fetch(withQuarter('/api/exp6?num_bidders=10', quarter)).then((r) => r.ok ? r.json() as Promise<Exp6Row[]> : []),
     ]).then(([r2, r5, r10]) => {
       setBids2(r2.map((r) => Number(r.bid)))
       setBids5(r5.map((r) => Number(r.bid)))
       setBids10(r10.map((r) => Number(r.bid)))
     }).finally(() => setLoading(false))
-  }, [])
+  }, [quarter])
 
   if (loading) return <Loading />
   if (bids2.length === 0 && bids5.length === 0 && bids10.length === 0) return <Empty />
@@ -414,7 +419,60 @@ function Exp6Charts() {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
-export default function ClassResultsPage() {
+function QuarterSelector({ quarters, quarter, onChange }: {
+  quarters: PublicQuarter[]
+  quarter: string | null
+  onChange: (id: string) => void
+}) {
+  if (quarters.length === 0) return null
+  const selectedId = quarter ?? quarters.find((q) => q.is_active)?.id ?? ''
+
+  return (
+    <select
+      value={selectedId}
+      onChange={(e) => onChange(e.target.value)}
+      className="text-xs px-2 py-1.5 rounded-lg"
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        color: 'var(--text)',
+        cursor: 'pointer',
+      }}
+    >
+      {quarters.map((q) => (
+        <option key={q.id} value={q.id}>
+          {q.name}{q.is_active ? ' (current)' : ''}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+function ClassResultsContent() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const [quarters, setQuarters] = useState<PublicQuarter[]>([])
+
+  const quarterParam = searchParams.get('quarter')
+
+  useEffect(() => {
+    fetch('/api/quarters')
+      .then((r) => r.json())
+      .then((data) => setQuarters(Array.isArray(data) ? data : []))
+      .catch(() => {})
+  }, [])
+
+  const activeQuarter = quarters.find((q) => q.is_active)
+  const viewingQuarter = quarterParam ? quarters.find((q) => q.id === quarterParam) : activeQuarter
+  const isArchiveView = Boolean(viewingQuarter && !viewingQuarter.is_active)
+  const quarter = isArchiveView ? viewingQuarter!.id : null
+
+  function handleQuarterChange(id: string) {
+    const selected = quarters.find((q) => q.id === id)
+    if (!selected) return
+    router.push(selected.is_active ? '/class-results' : `/class-results?quarter=${id}`)
+  }
+
   return (
     <main className="min-h-screen" style={{ background: 'var(--bg)' }}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
@@ -423,47 +481,79 @@ export default function ClassResultsPage() {
             style={{ color: 'var(--text-muted)' }}>
             ← Home
           </Link>
-          <h1 className="serif text-3xl" style={{ color: 'var(--navy)' }}>Class Results</h1>
-          <p className="text-sm mt-2" style={{ color: 'var(--text-muted)' }}>
-            Aggregate bid distributions and performance charts across all experiments.
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 className="serif text-3xl" style={{ color: 'var(--navy)' }}>Class Results</h1>
+              <p className="text-sm mt-2" style={{ color: 'var(--text-muted)' }}>
+                Aggregate bid distributions and performance charts across all experiments.
+              </p>
+            </div>
+            <QuarterSelector quarters={quarters} quarter={quarterParam} onChange={handleQuarterChange} />
+          </div>
+
+          {isArchiveView && viewingQuarter && (
+            <div
+              className="mt-5 rounded-xl px-4 py-3 flex items-center gap-3"
+              style={{ background: '#fef3c7', border: '1px solid #fde68a' }}
+            >
+              <span style={{ color: '#92400e', fontSize: 14 }}>📦</span>
+              <p className="text-xs font-medium" style={{ color: '#92400e' }}>
+                Viewing archived quarter: <strong>{viewingQuarter.name}</strong>
+              </p>
+              <button
+                onClick={() => router.push('/class-results')}
+                className="ml-auto text-xs px-3 py-1 rounded-lg"
+                style={{ background: '#92400e', color: '#fff', border: 'none', cursor: 'pointer' }}
+              >
+                Back to current
+              </button>
+            </div>
+          )}
         </div>
 
         <Section
           title="Experiment 1 — Sealed-Bid Auction"
           description="Private value vs. bid scatter with Nash equilibrium line and OLS regression, across all four treatments."
         >
-          <Exp1Charts />
+          <Exp1Charts quarter={quarter} />
         </Section>
 
         <Section
           title="Experiment 3 — Seller Auction"
           description="Per-round class averages for reserve price, profit, and sale rate across four treatments."
         >
-          <Exp3Charts />
+          <Exp3Charts quarter={quarter} />
         </Section>
 
         <Section
           title="Experiment 4 — Penny Jar Experiment"
           description="Scatter plot of each student's kernel estimate vs. their bid under 2, 10, or 100 bidders."
         >
-          <Exp4Charts />
+          <Exp4Charts quarter={quarter} />
         </Section>
 
         <Section
           title="Experiment 5 — Oil Well"
           description="Empirical bid CDF vs. Nash equilibrium, split by half-value treatment (integer bids)."
         >
-          <Exp5Charts />
+          <Exp5Charts quarter={quarter} />
         </Section>
 
         <Section
           title="Experiment 6 — All-Pay Auction"
           description="Empirical bid CDF vs. Nash equilibrium for groups of 2, 5, and 10 bidders."
         >
-          <Exp6Charts />
+          <Exp6Charts quarter={quarter} />
         </Section>
       </div>
     </main>
+  )
+}
+
+export default function ClassResultsPage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <ClassResultsContent />
+    </Suspense>
   )
 }

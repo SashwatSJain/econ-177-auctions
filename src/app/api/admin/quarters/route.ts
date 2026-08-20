@@ -44,30 +44,13 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminSupabaseClient()
 
-  // Capture the current active quarter so we can restore it if the insert fails
-  const { data: current } = await admin
-    .from('quarters')
-    .select('id')
-    .eq('is_active', true)
-    .single()
-
-  // Deactivate the current active quarter (unique index prevents two active rows,
-  // so we must deactivate before inserting the new one)
-  await admin.from('quarters').update({ is_active: false }).eq('is_active', true)
-
-  // Create the new active quarter
+  // Deactivate-then-insert runs as a single DB transaction (create_quarter is a
+  // plpgsql function), so a failure can never leave the system with zero active
+  // quarters — see supabase/quarter-fixes-migration.sql.
   const { data, error } = await admin
-    .from('quarters')
-    .insert({ name, is_active: true, class_schedule: schedule })
-    .select('id, name, is_active, class_schedule, created_at')
+    .rpc('create_quarter', { p_name: name, p_class_schedule: schedule })
     .single()
 
-  if (error) {
-    // Restore the previous active quarter to avoid leaving the system with no active quarter
-    if (current?.id) {
-      await admin.from('quarters').update({ is_active: true }).eq('id', current.id)
-    }
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data, { status: 201 })
 }

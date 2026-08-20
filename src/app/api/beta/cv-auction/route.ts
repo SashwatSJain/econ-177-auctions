@@ -85,7 +85,9 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
+  const quarterId = await getActiveQuarterId(admin)
   let query = admin.from('beta_cv_auction').delete().eq('session_key', SESSION)
+  if (quarterId) query = query.eq('quarter_id', quarterId)
   if (variant === 'integer' || variant === 'continuous') {
     query = query.eq('variant', variant)
   }

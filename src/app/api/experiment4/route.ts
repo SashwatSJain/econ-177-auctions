@@ -6,14 +6,29 @@ import { getActiveQuarterId, resolveQuarterId } from '@/lib/get-quarter-id'
 export async function GET(req: NextRequest) {
   const admin = createAdminSupabaseClient()
   const quarterId = await resolveQuarterId(admin, req.nextUrl.searchParams.get('quarter'))
-  const [{ data, error }, { data: allSamples }] = await Promise.all([
+  const [{ data, error }, { data: allSamplesRaw }] = await Promise.all([
     quarterId
       ? admin.from('experiment4_responses').select('*').eq('quarter_id', quarterId).order('created_at', { ascending: true })
       : admin.from('experiment4_responses').select('*').order('created_at', { ascending: true }),
-    admin.from('experiment4_samples').select('student_id, ref_id, created_at').order('created_at', { ascending: true }),
+    admin
+      .from('experiment4_samples')
+      .select('student_id, ref_id, created_at, experiment4_responses!inner(quarter_id)')
+      .order('created_at', { ascending: true }),
   ])
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // experiment4_samples has no quarter_id of its own — a sample's quarter is inferred from
+  // the quarter of the response row it references. Drop samples whose ref belongs to a
+  // different quarter than the one being viewed (mirrors the stale-assignment check in
+  // /api/export for exp4-group).
+  const allSamples = (quarterId
+    ? (allSamplesRaw ?? []).filter(
+        (s: { experiment4_responses: { quarter_id: string }[] }) =>
+          s.experiment4_responses[0]?.quarter_id === quarterId
+      )
+    : allSamplesRaw
+  ) as { student_id: string; ref_id: string; created_at: string }[] | null
 
   // Fetch the referenced rows for all assigned samples
   const refIds = [...new Set((allSamples ?? []).map((s) => s.ref_id))]

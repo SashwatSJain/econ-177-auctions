@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
-import { getActiveQuarterId } from '@/lib/get-quarter-id'
+import { getActiveQuarterId, resolveQuarterId } from '@/lib/get-quarter-id'
 
 const SESSION = 'default'
 
@@ -8,7 +8,7 @@ const SESSION = 'default'
 export async function GET(req: NextRequest) {
   const nb = Number(req.nextUrl.searchParams.get('num_bidders'))
   const admin = createAdminSupabaseClient()
-  const quarterId = await getActiveQuarterId(admin)
+  const quarterId = await resolveQuarterId(admin, req.nextUrl.searchParams.get('quarter'))
 
   let query = admin
     .from('exp6_allpay')
@@ -98,11 +98,14 @@ export async function DELETE(req: NextRequest) {
   }
 
   if ([2, 5, 10].includes(nb)) {
-    const { error } = await admin
+    const quarterId = await getActiveQuarterId(admin)
+    let query = admin
       .from('exp6_allpay')
       .delete()
       .eq('session_key', SESSION)
       .eq('num_bidders', nb)
+    if (quarterId) query = query.eq('quarter_id', quarterId)
+    const { error } = await query
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true })
   }
